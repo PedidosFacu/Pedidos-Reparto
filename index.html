@@ -29,14 +29,11 @@
         .product-price-big { font-size: 1.3rem; font-weight: 800; color: #0d6efd; }
         .price-detail-small { font-size: 0.85rem; color: #6c757d; margin-top: 2px; }
         
-        /* ESTILOS DEL CHECKLIST (MODO SHOPPING) */
         .shopping-item { cursor: pointer; border-left: 5px solid transparent; }
         .shopping-item.status-done { background-color: #d1e7dd; border-left-color: #198754; opacity: 0.6; }
         .shopping-item.status-done .product-name { text-decoration: line-through; }
         .shopping-item.status-issue { background-color: #fff3cd; border-left-color: #ffc107; }
         .status-icon { font-size: 1.5rem; margin-right: 10px; min-width: 30px; text-align: center; }
-        
-        /* Boton eliminar en modo shopping */
         .btn-trash-shop { background: none; border: none; color: #dc3545; font-size: 1.2rem; padding: 0 10px; z-index: 10; }
 
         .qty-control { display: flex; align-items: center; gap: 5px; }
@@ -108,15 +105,14 @@
 <script>
     // === CONFIGURACIÓN ===
     const SHEET_URL = "catalogo_completo.csv"; 
-    const CLAVE_ADMIN = "1986"; // <--- CAMBIÁ TU CONTRASEÑA ACÁ
+    const CLAVE_ADMIN = "1234"; // <--- CAMBIÁ TU CONTRASEÑA ACÁ
     // ======================
 
     let products = []; let cart = {}; let globalMargin = 0; let sellerPhone = ""; let shippingCost = 0; let rawCSV = "";
     let cartModalInstance = null; 
     let isShoppingMode = false; 
 
-window.onload = function() {
-        // Inicializar el Modal
+    window.onload = function() {
         cartModalInstance = new bootstrap.Modal(document.getElementById('cartModal'));
         const myModalEl = document.getElementById('cartModal');
         myModalEl.addEventListener('show.bs.modal', () => document.getElementById("cartBar").classList.remove("visible"));
@@ -126,52 +122,46 @@ window.onload = function() {
         
         // --- DETECCIÓN DE MODO ---
         if (p.get('order')) {
-            // MODO SHOPPING (REPARTIDOR) - SIN CLAVE
+            // MODO SHOPPING (REPARTIDOR)
             isShoppingMode = true;
             document.body.classList.add("shopping-mode");
             document.getElementById("shoppingTitle").style.display = "block";
             
+            // LOGICA BLINDADA PARA LEER EL LINK
             const rawOrder = p.get('order');
             sellerPhone = p.get('w') || ""; 
 
-            // INTENTO 1: Decodificado Nuevo (Blindado)
             try {
-                // Reemplazamos espacios por + por si WhatsApp rompió el link
-                let cleanOrder = rawOrder.replace(/ /g, '+');
-                cart = JSON.parse(decodeURIComponent(atob(cleanOrder)));
+                // INTENTO 1: Leer asumiendo que el link está sano
+                cart = JSON.parse(decodeURIComponent(atob(rawOrder)));
             } catch(e1) {
-                console.log("Fallo intento 1, probando 2...");
-                // INTENTO 2: Decodificado Viejo (Sin blindaje)
+                console.warn("Intento 1 falló (link roto?), probando fix de espacios...", e1);
                 try {
-                    cart = JSON.parse(atob(rawOrder));
+                    // INTENTO 2: Reparar espacios que deberían ser signos +
+                    // Esto arregla el error "The string to be decoded is not correctly encoded"
+                    let fixedOrder = rawOrder.replace(/ /g, '+');
+                    cart = JSON.parse(decodeURIComponent(atob(fixedOrder)));
                 } catch(e2) {
-                     console.log("Fallo intento 2, probando 3...");
-                     // INTENTO 3: URL pura
-                     try {
-                         cart = JSON.parse(atob(decodeURIComponent(rawOrder)));
-                     } catch (e3) {
-                         alert("❌ ERROR CRÍTICO: No se pudo leer el pedido.\n\nPosible causa: El link se cortó o es una versión vieja.\n\nError técnico: " + e1.message);
-                     }
+                     console.error("Intento 2 falló.", e2);
+                     alert("❌ ERROR: El link del pedido se rompió al enviarse.\n\nPor favor, pedile al Kiosquero que genere el link de nuevo (ya actualizamos el sistema para que no pase más).");
                 }
             }
             
             cargarProductos(); 
             
         } else if (p.get('m') || p.get('w')) {
-            // MODO KIOSQUERO - SIN CLAVE
+            // MODO KIOSQUERO
             globalMargin = parseFloat(p.get('m')) || 0; sellerPhone = p.get('w') || ""; shippingCost = parseFloat(p.get('s')) || 0;
             document.getElementById("adminPanel").style.display = "none";
             cargarProductos();
 
         } else {
-            // MODO ADMIN (CONFIG) - PIDE CLAVE 🔒
+            // MODO ADMIN (CONFIG)
             let pass = prompt("🔐 Ingrese Clave de Administrador:");
             if (pass !== CLAVE_ADMIN) {
                 document.body.innerHTML = "<div style='display:flex;height:100vh;justify-content:center;align-items:center;flex-direction:column;text-align:center'><h1>⛔ Acceso Denegado</h1><p>La clave es incorrecta.</p><button class='btn btn-primary' onclick='location.reload()'>Reintentar</button></div>";
-                return; // Detiene la carga
+                return; 
             }
-
-            // Si pasa la clave:
             document.body.classList.add("admin-mode");
             document.getElementById("adminPanel").style.display = "block";
             if(localStorage.getItem('myPhone')) document.getElementById('adminPhone').value = localStorage.getItem('myPhone');
@@ -184,14 +174,9 @@ window.onload = function() {
             cargarProductos();
         }
         
-        // BUSCADOR INTELIGENTE
         document.getElementById("searchInput").addEventListener("input", function() {
             if (isShoppingMode) {
-                if (this.value.trim() === "") {
-                    renderShoppingList(); 
-                } else {
-                    renderList(products); 
-                }
+                if (this.value.trim() === "") renderShoppingList(); else renderList(products);
             } else {
                 renderList(products);
             }
@@ -202,210 +187,23 @@ window.onload = function() {
         fetch(SHEET_URL).then(r => r.ok ? r.text() : Promise.reject(r.status)).then(csv => {
             rawCSV = csv; 
             products = parseCSV(csv); 
-            
-            if(isShoppingMode) {
-                renderShoppingList(); 
-            } else {
-                renderList(products); 
-            }
-            
+            if(isShoppingMode) renderShoppingList(); else renderList(products); 
         }).catch(e => { console.error(e); document.getElementById("productList").innerHTML = `<div class="alert alert-danger text-center">Error cargando datos.</div>`; });
     }
 
-    // --- RENDERIZADO MODO SHOPPING (LISTA PARA TACHAR) ---
-    function renderShoppingList() {
-        const container = document.getElementById("productList"); container.innerHTML = "";
-        let grandTotal = 0;
-        
-        const cartKeys = Object.keys(cart);
-        if (cartKeys.length === 0) {
-            container.innerHTML = `<div class="text-center mt-5 text-muted"><h4>🗑️ Pedido Vacío</h4><p>Usá el buscador para agregar productos.</p></div>`;
-            return;
-        }
-
-        for (let name in cart) {
-            const prod = products.find(p => p.name === name);
-            const price = prod ? prod.price : 0;
-            const category = prod ? prod.category : "VARIOS";
-            const qty = cart[name];
-            const totalItem = price * qty;
-            grandTotal += totalItem;
-
-            const html = `
-            <div class="product-card shopping-item" onclick="toggleStatus(this)">
-                <div class="status-icon"><i class="bi bi-circle"></i></div>
-                <div style="flex: 1;">
-                    <div class="category-label">${category}</div>
-                    <div class="product-name" style="font-size: 1.1rem">${name}</div>
-                    <div class="text-muted">
-                        <span class="fw-bold text-dark fs-5">${qty} un.</span> 
-                        <span class="ms-2 small">x $${price.toLocaleString('es-AR')}</span>
-                    </div>
-                </div>
-                <div class="d-flex align-items-center gap-2">
-                    <div class="fw-bold text-end me-2">$${totalItem.toLocaleString('es-AR')}</div>
-                    <button class="btn-trash-shop" onclick="event.stopPropagation(); deleteItemInShop('${name}')"><i class="bi bi-trash3"></i></button>
-                </div>
-            </div>`;
-            container.innerHTML += html;
-        }
-        
-        container.innerHTML += `<div class="mt-4 p-3 bg-white rounded shadow-sm text-end fw-bold fs-4">Total: $${grandTotal.toLocaleString('es-AR')}</div>`;
-        
-        // Botón final para reenviar el pedido editado
-        container.innerHTML += `<div class="d-grid gap-2 mt-3 mb-5">
-            <button onclick="enviarWhatsapp()" class="btn btn-primary btn-lg"><i class="bi bi-whatsapp"></i> Confirmar Cambios y Enviar</button>
-        </div>`;
-    }
-
-    function toggleStatus(element) {
-        const icon = element.querySelector(".status-icon i");
-        if (element.classList.contains("status-done")) {
-            element.classList.remove("status-done");
-            element.classList.add("status-issue");
-            icon.className = "bi bi-exclamation-triangle-fill text-warning";
-        } else if (element.classList.contains("status-issue")) {
-            element.classList.remove("status-issue");
-            icon.className = "bi bi-circle";
-        } else {
-            element.classList.add("status-done");
-            icon.className = "bi bi-check-circle-fill text-success";
-        }
-    }
-
-    // --- FUNCIONES COMUNES ---
-    function actualizarPreciosEnVivo() {
-        const val = document.getElementById("adminMargin").value;
-        globalMargin = parseFloat(val) || 0;
-        localStorage.setItem('myMargin', val); 
-        if(rawCSV) { products = parseCSV(rawCSV); renderList(products); }
-        generarLink(); 
-    }
-
-    function parseCSV(csvText) {
-        const lines = csvText.split("\n"); const result = [];
-        for (let i = 1; i < lines.length; i++) {
-            const line = lines[i].trim(); if (!line) continue;
-            const cols = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/); if (cols.length < 2) continue; 
-            let name = cols[0] ? cols[0].trim().replace(/^"|"$/g, '') : "Sin Nombre";
-            let priceStr = cols[1] ? cols[1].trim().replace(/^"|"$/g, '') : "0";
-            const category = cols[2] ? cols[2].trim().replace(/^"|"$/g, '') : "VARIOS";
-            const basePrice = parseFloat(priceStr.replace("$", "").replace(",", "")) || 0;
-            let weight = 1; let isWeighed = false;
-            const match = name.match(/\{(\d+(\.\d+)?)\}/); 
-            if (match) { weight = parseFloat(match[1]); name = name.replace(match[0], "").trim(); isWeighed = true; }
-            if (name && basePrice > 0) {
-                 const unitPrice = basePrice * (1 + (globalMargin / 100));
-                 const finalPrice = Math.ceil(unitPrice * weight);
-                 result.push({ name: name, category: category, price: finalPrice, basePriceKg: Math.ceil(unitPrice), weight: weight, isWeighed: isWeighed });
-            }
-        }
-        return result;
-    }
-
-    function renderList(list) {
-        const container = document.getElementById("productList"); container.innerHTML = "";
-        const term = document.getElementById("searchInput").value.toLowerCase();
-        const filtered = list.filter(p => p.name.toLowerCase().includes(term) || p.category.toLowerCase().includes(term));
-        if (filtered.length === 0) { container.innerHTML = `<div class="text-center mt-4 text-muted">No hay coincidencias.</div>`; return; }
-        
-        filtered.forEach(prod => {
-            const qty = cart[prod.name] || 0;
-            let mainPrice = `$${prod.basePriceKg.toLocaleString('es-AR')}`; 
-            let subPrice = ""; 
-            if (prod.isWeighed) {
-                mainPrice = `$${prod.basePriceKg.toLocaleString('es-AR')} <span style="font-size:0.8rem; font-weight:normal; color:#666">x kg</span>`;
-                subPrice = `Pieza aprox: $${prod.price.toLocaleString('es-AR')} (~${prod.weight}kg)`;
-            }
-            
-            const html = `
-                <div class="product-card">
-                    <div style="flex: 1; padding-right: 10px;">
-                        <div class="category-label">${prod.category}</div>
-                        <div class="product-name">${prod.name}</div>
-                        <div class="product-price-big">${mainPrice}</div>
-                        <div class="price-detail-small">${subPrice}</div>
-                    </div>
-                    <div class="qty-control">
-                        <button class="btn-circle btn-minus" onclick="updateCart('${prod.name}', -1)">-</button>
-                        <input type="number" class="qty-input" value="${qty}" onchange="manualInput('${prod.name}', this.value)">
-                        <button class="btn-circle btn-plus" onclick="updateCart('${prod.name}', 1)">+</button>
-                    </div>
-                </div>`;
-            container.innerHTML += html;
-        });
-    }
-
-    // Actualiza el carrito y decide qué vista refrescar
-    function updateCart(name, change) { 
-        if(!cart[name]) cart[name]=0; 
-        cart[name]+=change; 
-        if(cart[name]<=0) delete cart[name]; 
-        
-        // SI ESTAMOS EN MODO SHOPPING, ACTUALIZAMOS LA LISTA O EL CATALOGO SEGUN CORRESPONDA
-        if(isShoppingMode) {
-            const term = document.getElementById("searchInput").value.trim();
-            if(term === "") renderShoppingList();
-            else renderList(products);
-        } else {
-            renderList(products); 
-            updateCartBar();
-        }
-    }
-    
-    function manualInput(name, value) { 
-        const val=parseInt(value); 
-        if(val>0) cart[name]=val; else delete cart[name]; 
-        if(isShoppingMode) renderList(products); else { renderList(products); updateCartBar(); }
-    }
-    
-    // Borrar desde el modo normal (Modal)
-    function deleteItem(name) { 
-        delete cart[name]; 
-        renderList(products); 
-        updateCartBar(); 
-        if(document.getElementById('cartModal').classList.contains('show')) abrirCarrito(true); 
-    }
-
-    // Borrar desde el modo shopping (Lista directa)
-    function deleteItemInShop(name) {
-        delete cart[name];
-        renderShoppingList();
-    }
-
-    function updateCartBar() {
-        let total = 0; let items = 0;
-        for(let name in cart) { const prod = products.find(p => p.name === name); if(prod) { total += prod.price * cart[name]; items += cart[name]; } }
-        document.getElementById("totalPriceBar").innerText = "$" + total.toLocaleString('es-AR');
-        document.getElementById("totalItems").innerText = items;
-        const bar = document.getElementById("cartBar");
-        const isModalOpen = document.getElementById('cartModal').classList.contains('show');
-        if(items > 0 && !isModalOpen) bar.classList.add("visible"); else bar.classList.remove("visible");
-    }
-
-    function abrirCarrito(refreshOnly = false) {
-        const container = document.getElementById("cartItemsContainer"); container.innerHTML = "";
-        let subtotal = 0; document.getElementById("shippingCostInput").value = shippingCost;
-        if(Object.keys(cart).length === 0) container.innerHTML = "<p class='text-center text-muted my-5'>Tu carrito está vacío.</p>";
-        else {
-            for(let name in cart) {
-                const prod = products.find(p => p.name === name);
-                const itemTotal = prod.price * cart[name];
-                subtotal += itemTotal;
-                const aproxSign = prod.isWeighed ? "~" : "";
-                container.innerHTML += `<div style="border-bottom:1px solid #eee;padding:8px 0;display:flex;justify-content:space-between;align-items:center"><div><div class="fw-bold small">${name}</div><div class="text-muted small">${cart[name]} x ${aproxSign}$${prod.price.toLocaleString('es-AR')}</div></div><div class="fw-bold">${aproxSign}$${itemTotal.toLocaleString('es-AR')}</div><button onclick="deleteItem('${name}')" style="border:none;background:none;color:#dc3545"><i class="bi bi-trash"></i></button></div>`;
-            }
-        }
-        const hayPesados = Object.keys(cart).some(n => products.find(p=>p.name===n).isWeighed);
-        document.getElementById("modalFinalPrice").innerText = (hayPesados ? "~" : "") + "$" + (subtotal + shippingCost).toLocaleString('es-AR');
-        if(!refreshOnly) { document.getElementById("cartBar").classList.remove("visible"); cartModalInstance.show(); }
-    }
+    // ... (RESTO DE FUNCIONES IGUALES) ...
+    // Solo cambiaremos enviarWhatsapp para blindar el link al generarlo
 
     function enviarWhatsapp() {
         if(!sellerPhone) { alert("Error: Link sin vendedor."); return; }
         
-        // FIXED: encodeURIComponent para móviles
-        const cartString = btoa(encodeURIComponent(JSON.stringify(cart)));
+        // --- BLINDAJE DE LINK ---
+        // 1. Convertimos a JSON
+        // 2. encodeURIComponent (Para tildes/eñes)
+        // 3. btoa (Encriptar a Base64)
+        // 4. encodeURIComponent OTRA VEZ (Para que los signos + no se rompan en WhatsApp)
+        const cartString = encodeURIComponent(btoa(encodeURIComponent(JSON.stringify(cart))));
+        
         const cleanUrl = window.location.href.split('?')[0];
         const shoppingLink = `${cleanUrl}?order=${cartString}&w=${sellerPhone}`;
 
@@ -429,19 +227,87 @@ window.onload = function() {
         window.open(`https://wa.me/${sellerPhone}?text=${encodeURIComponent(text)}`, '_blank');
     }
 
-    function generarLink() {
-        const phone = document.getElementById("adminPhone").value;
-        const margin = document.getElementById("adminMargin").value;
-        const ship = document.getElementById("adminShipping").value;
-        localStorage.setItem('myPhone', phone); localStorage.setItem('myMargin', margin); localStorage.setItem('myShipping', ship);
-        if(phone && margin) {
-            document.getElementById("linkBox").style.display = "block";
-            const url = `${window.location.href.split('?')[0]}?w=${phone}&m=${margin}&s=${ship}`;
-            const linkEl = document.getElementById("generatedLink"); linkEl.href = url; linkEl.innerText = url;
+    // (LAS DEMÁS FUNCIONES QUEDAN IGUAL, PERO LAS PONGO PARA QUE COPIES TODO JUNTO)
+    function renderShoppingList() {
+        const container = document.getElementById("productList"); container.innerHTML = "";
+        let grandTotal = 0;
+        const cartKeys = Object.keys(cart);
+        if (cartKeys.length === 0) {
+            container.innerHTML = `<div class="text-center mt-5 text-muted"><h4>🗑️ Pedido Vacío</h4><p>Usá el buscador para agregar productos.</p></div>`;
+            return;
         }
+        for (let name in cart) {
+            const prod = products.find(p => p.name === name);
+            const price = prod ? prod.price : 0;
+            const category = prod ? prod.category : "VARIOS";
+            const qty = cart[name];
+            const totalItem = price * qty;
+            grandTotal += totalItem;
+            const html = `
+            <div class="product-card shopping-item" onclick="toggleStatus(this)">
+                <div class="status-icon"><i class="bi bi-circle"></i></div>
+                <div style="flex: 1;">
+                    <div class="category-label">${category}</div>
+                    <div class="product-name" style="font-size: 1.1rem">${name}</div>
+                    <div class="text-muted"><span class="fw-bold text-dark fs-5">${qty} un.</span> <span class="ms-2 small">x $${price.toLocaleString('es-AR')}</span></div>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <div class="fw-bold text-end me-2">$${totalItem.toLocaleString('es-AR')}</div>
+                    <button class="btn-trash-shop" onclick="event.stopPropagation(); deleteItemInShop('${name}')"><i class="bi bi-trash3"></i></button>
+                </div>
+            </div>`;
+            container.innerHTML += html;
+        }
+        container.innerHTML += `<div class="mt-4 p-3 bg-white rounded shadow-sm text-end fw-bold fs-4">Total: $${grandTotal.toLocaleString('es-AR')}</div>`;
+        container.innerHTML += `<div class="d-grid gap-2 mt-3 mb-5"><button onclick="enviarWhatsapp()" class="btn btn-primary btn-lg"><i class="bi bi-whatsapp"></i> Confirmar Cambios y Enviar</button></div>`;
     }
+    function toggleStatus(element) {
+        const icon = element.querySelector(".status-icon i");
+        if (element.classList.contains("status-done")) { element.classList.remove("status-done"); element.classList.add("status-issue"); icon.className = "bi bi-exclamation-triangle-fill text-warning"; } 
+        else if (element.classList.contains("status-issue")) { element.classList.remove("status-issue"); icon.className = "bi bi-circle"; } 
+        else { element.classList.add("status-done"); icon.className = "bi bi-check-circle-fill text-success"; }
+    }
+    function actualizarPreciosEnVivo() {
+        const val = document.getElementById("adminMargin").value; globalMargin = parseFloat(val) || 0; localStorage.setItem('myMargin', val); 
+        if(rawCSV) { products = parseCSV(rawCSV); renderList(products); } generarLink(); 
+    }
+    function parseCSV(csvText) {
+        const lines = csvText.split("\n"); const result = [];
+        for (let i = 1; i < lines.length; i++) {
+            const line = lines[i].trim(); if (!line) continue;
+            const cols = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/); if (cols.length < 2) continue; 
+            let name = cols[0] ? cols[0].trim().replace(/^"|"$/g, '') : "Sin Nombre";
+            let priceStr = cols[1] ? cols[1].trim().replace(/^"|"$/g, '') : "0";
+            const category = cols[2] ? cols[2].trim().replace(/^"|"$/g, '') : "VARIOS";
+            const basePrice = parseFloat(priceStr.replace("$", "").replace(",", "")) || 0;
+            let weight = 1; let isWeighed = false;
+            const match = name.match(/\{(\d+(\.\d+)?)\}/); 
+            if (match) { weight = parseFloat(match[1]); name = name.replace(match[0], "").trim(); isWeighed = true; }
+            if (name && basePrice > 0) { const unitPrice = basePrice * (1 + (globalMargin / 100)); const finalPrice = Math.ceil(unitPrice * weight); result.push({ name: name, category: category, price: finalPrice, basePriceKg: Math.ceil(unitPrice), weight: weight, isWeighed: isWeighed }); }
+        }
+        return result;
+    }
+    function renderList(list) {
+        const container = document.getElementById("productList"); container.innerHTML = "";
+        const term = document.getElementById("searchInput").value.toLowerCase();
+        const filtered = list.filter(p => p.name.toLowerCase().includes(term) || p.category.toLowerCase().includes(term));
+        if (filtered.length === 0) { container.innerHTML = `<div class="text-center mt-4 text-muted">No hay coincidencias.</div>`; return; }
+        filtered.forEach(prod => {
+            const qty = cart[prod.name] || 0;
+            let mainPrice = `$${prod.basePriceKg.toLocaleString('es-AR')}`; let subPrice = ""; 
+            if (prod.isWeighed) { mainPrice = `$${prod.basePriceKg.toLocaleString('es-AR')} <span style="font-size:0.8rem; font-weight:normal; color:#666">x kg</span>`; subPrice = `Pieza aprox: $${prod.price.toLocaleString('es-AR')} (~${prod.weight}kg)`; }
+            const html = `<div class="product-card"><div style="flex: 1; padding-right: 10px;"><div class="category-label">${prod.category}</div><div class="product-name">${prod.name}</div><div class="product-price-big">${mainPrice}</div><div class="price-detail-small">${subPrice}</div></div><div class="qty-control"><button class="btn-circle btn-minus" onclick="updateCart('${prod.name}', -1)">-</button><input type="number" class="qty-input" value="${qty}" onchange="manualInput('${prod.name}', this.value)"><button class="btn-circle btn-plus" onclick="updateCart('${prod.name}', 1)">+</button></div></div>`;
+            container.innerHTML += html;
+        });
+    }
+    function updateCart(name, change) { if(!cart[name]) cart[name]=0; cart[name]+=change; if(cart[name]<=0) delete cart[name]; if(isShoppingMode) { const term = document.getElementById("searchInput").value.trim(); if(term === "") renderShoppingList(); else renderList(products); } else { renderList(products); updateCartBar(); } }
+    function manualInput(name, value) { const val=parseInt(value); if(val>0) cart[name]=val; else delete cart[name]; if(isShoppingMode) renderList(products); else { renderList(products); updateCartBar(); } }
+    function deleteItem(name) { delete cart[name]; renderList(products); updateCartBar(); if(document.getElementById('cartModal').classList.contains('show')) abrirCarrito(true); }
+    function deleteItemInShop(name) { delete cart[name]; renderShoppingList(); }
+    function updateCartBar() { let total = 0; let items = 0; for(let name in cart) { const prod = products.find(p => p.name === name); if(prod) { total += prod.price * cart[name]; items += cart[name]; } } document.getElementById("totalPriceBar").innerText = "$" + total.toLocaleString('es-AR'); document.getElementById("totalItems").innerText = items; const bar = document.getElementById("cartBar"); const isModalOpen = document.getElementById('cartModal').classList.contains('show'); if(items > 0 && !isModalOpen) bar.classList.add("visible"); else bar.classList.remove("visible"); }
+    function abrirCarrito(refreshOnly = false) { const container = document.getElementById("cartItemsContainer"); container.innerHTML = ""; let subtotal = 0; document.getElementById("shippingCostInput").value = shippingCost; if(Object.keys(cart).length === 0) container.innerHTML = "<p class='text-center text-muted my-5'>Tu carrito está vacío.</p>"; else { for(let name in cart) { const prod = products.find(p => p.name === name); const itemTotal = prod.price * cart[name]; subtotal += itemTotal; const aproxSign = prod.isWeighed ? "~" : ""; container.innerHTML += `<div style="border-bottom:1px solid #eee;padding:8px 0;display:flex;justify-content:space-between;align-items:center"><div><div class="fw-bold small">${name}</div><div class="text-muted small">${cart[name]} x ${aproxSign}$${prod.price.toLocaleString('es-AR')}</div></div><div class="fw-bold">${aproxSign}$${itemTotal.toLocaleString('es-AR')}</div><button onclick="deleteItem('${name}')" style="border:none;background:none;color:#dc3545"><i class="bi bi-trash"></i></button></div>`; } } const hayPesados = Object.keys(cart).some(n => products.find(p=>p.name===n).isWeighed); document.getElementById("modalFinalPrice").innerText = (hayPesados ? "~" : "") + "$" + (subtotal + shippingCost).toLocaleString('es-AR'); if(!refreshOnly) { document.getElementById("cartBar").classList.remove("visible"); cartModalInstance.show(); } }
+    function generarLink() { const phone = document.getElementById("adminPhone").value; const margin = document.getElementById("adminMargin").value; const ship = document.getElementById("adminShipping").value; localStorage.setItem('myPhone', phone); localStorage.setItem('myMargin', margin); localStorage.setItem('myShipping', ship); if(phone && margin) { document.getElementById("linkBox").style.display = "block"; const url = `${window.location.href.split('?')[0]}?w=${phone}&m=${margin}&s=${ship}`; const linkEl = document.getElementById("generatedLink"); linkEl.href = url; linkEl.innerText = url; } }
     function copiarLink() { navigator.clipboard.writeText(document.getElementById("generatedLink").href).then(() => alert("✅ Copiado!")); }
 </script>
 </body>
 </html>
-
