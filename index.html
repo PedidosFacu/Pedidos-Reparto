@@ -92,12 +92,40 @@
 <script>
     // === CONFIGURACIÓN ===
     const SHEET_URL = "catalogo_completo.csv"; 
-    const CLAVE_ADMIN = "1986"; // <--- TU CLAVE
+    const CLAVE_ADMIN = "1986"; // <--- CLAVE DE FACU
     // ======================
 
     let products = []; let cart = {}; let globalMargin = 0; let sellerPhone = ""; let shippingCost = 0; let rawCSV = "";
     let cartModalInstance = null; 
     let isShoppingMode = false; 
+
+    // --- LECTOR UNIVERSAL (LEE TEXTO PLANO Y ENCRIPTADO) ---
+    function leerPedidoUniversal(rawOrder) {
+        // 1. Intentamos leer como JSON directo (Sistema Nuevo)
+        try {
+            // URLSearchParams ya decodifica una vez, a veces necesitamos otra
+            let decoded = decodeURIComponent(rawOrder);
+            if (decoded.startsWith("{")) return JSON.parse(decoded);
+            // Si no empieza con {, capaz es el JSON crudo directo
+            if (rawOrder.startsWith("{")) return JSON.parse(rawOrder);
+        } catch (e) {}
+
+        // 2. Intentamos leer como Base64 Seguro (Sistema Intermedio)
+        try {
+            let base64 = rawOrder.replace(/-/g, '+').replace(/_/g, '/');
+            while (base64.length % 4) { base64 += '='; }
+            return JSON.parse(decodeURIComponent(atob(base64)));
+        } catch (e) {}
+
+        // 3. Intentamos leer como Base64 Viejo (Sistema Original)
+        try {
+            // Fix común: WhatsApp cambia + por espacio
+            let fixed = rawOrder.replace(/ /g, '+');
+            return JSON.parse(decodeURIComponent(atob(fixed)));
+        } catch (e) {}
+
+        throw new Error("No se pudo leer el formato del link.");
+    }
 
     window.onload = function() {
         cartModalInstance = new bootstrap.Modal(document.getElementById('cartModal'));
@@ -117,14 +145,12 @@
             const rawOrder = p.get('order');
             sellerPhone = p.get('w') || ""; 
 
-            // LECTURA DIRECTA (SIN ENCRIPTACIÓN COMPLEXA)
             try {
-                // Simplemente decodificamos el texto URL
-                cart = JSON.parse(decodeURIComponent(rawOrder));
+                cart = leerPedidoUniversal(rawOrder);
                 cargarProductos(); 
             } catch(e) { 
                 console.error(e);
-                alert("❌ ERROR: El link está roto. Probablemente se cortó al copiarlo.\n\nPor favor genera uno nuevo.");
+                alert("❌ ERROR: El link está roto o es incompatible.\n\nPor favor generá un pedido NUEVO para probar el sistema actualizado.");
             }
             
         } else if (p.get('m') || p.get('w')) {
@@ -172,11 +198,9 @@
     function enviarWhatsapp() {
         if(!sellerPhone) { alert("Error: Link sin vendedor."); return; }
         
-        // --- ESTRATEGIA SIMPLE (TEXTO PLANO) ---
-        // Eliminamos el btoa() (encriptación) que causa el problema de longitud.
-        // Solo usamos encodeURIComponent para que sea seguro en la URL.
+        // --- ESTRATEGIA TEXTO PLANO (LA MÁS SEGURA Y COMPATIBLE) ---
+        // Generamos links largos pero indestructibles
         const cartString = encodeURIComponent(JSON.stringify(cart));
-        
         const cleanUrl = window.location.href.split('?')[0];
         const shoppingLink = `${cleanUrl}?order=${cartString}&w=${sellerPhone}`;
 
