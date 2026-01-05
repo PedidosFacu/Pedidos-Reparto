@@ -115,7 +115,8 @@
     let cartModalInstance = null; 
     let isShoppingMode = false; 
 
-    window.onload = function() {
+window.onload = function() {
+        // Inicializar el Modal
         cartModalInstance = new bootstrap.Modal(document.getElementById('cartModal'));
         const myModalEl = document.getElementById('cartModal');
         myModalEl.addEventListener('show.bs.modal', () => document.getElementById("cartBar").classList.remove("visible"));
@@ -130,15 +131,28 @@
             document.body.classList.add("shopping-mode");
             document.getElementById("shoppingTitle").style.display = "block";
             
+            const rawOrder = p.get('order');
+            sellerPhone = p.get('w') || ""; 
+
+            // INTENTO 1: Decodificado Nuevo (Blindado)
             try {
-                // FIXED: decodeURIComponent para móviles
-                const orderData = JSON.parse(decodeURIComponent(atob(p.get('order')))); 
-                cart = orderData; 
-                sellerPhone = p.get('w') || ""; 
-            } catch(e) { 
-                console.error("Error al leer pedido", e); 
-                // Fallback por si es un link viejo
-                try { cart = JSON.parse(atob(p.get('order'))); } catch(ex){}
+                // Reemplazamos espacios por + por si WhatsApp rompió el link
+                let cleanOrder = rawOrder.replace(/ /g, '+');
+                cart = JSON.parse(decodeURIComponent(atob(cleanOrder)));
+            } catch(e1) {
+                console.log("Fallo intento 1, probando 2...");
+                // INTENTO 2: Decodificado Viejo (Sin blindaje)
+                try {
+                    cart = JSON.parse(atob(rawOrder));
+                } catch(e2) {
+                     console.log("Fallo intento 2, probando 3...");
+                     // INTENTO 3: URL pura
+                     try {
+                         cart = JSON.parse(atob(decodeURIComponent(rawOrder)));
+                     } catch (e3) {
+                         alert("❌ ERROR CRÍTICO: No se pudo leer el pedido.\n\nPosible causa: El link se cortó o es una versión vieja.\n\nError técnico: " + e1.message);
+                     }
+                }
             }
             
             cargarProductos(); 
@@ -430,3 +444,4 @@
 </script>
 </body>
 </html>
+
