@@ -9,26 +9,42 @@
     
     <style>
         body { background-color: #f0f2f5; padding-bottom: 120px; font-family: -apple-system, sans-serif; }
-        body.admin-mode .qty-control, body.admin-mode .cart-bar, body.admin-mode .btn-circle { display: none !important; }
-        body.shopping-mode .admin-panel, body.shopping-mode .cart-bar { display: none !important; }
+        
+        /* MODO ADMIN (CONFIG): OCULTA CONTROLES DE COMPRA */
+        body.admin-mode .qty-control, 
+        body.admin-mode .cart-bar,
+        body.admin-mode .btn-circle { display: none !important; }
+
+        /* MODO SHOPPING (REPARTIDOR): OCULTA COSAS DE ADMIN */
+        body.shopping-mode .admin-panel,
+        body.shopping-mode .cart-bar { display: none !important; }
+        
+        /* En modo shopping, mostramos controles SOLO si estamos buscando (no en la lista checklist) */
         body.shopping-mode .qty-control { display: flex !important; }
+
         .admin-panel { background: #343a40; color: white; padding: 15px; border-radius: 0 0 15px 15px; margin-bottom: 20px; display: none; }
         .product-card { background: white; border-radius: 12px; padding: 12px; margin-bottom: 10px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: center; transition: 0.2s; }
         .category-label { font-size: 0.7rem; color: #198754; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 2px; }
         .product-name { font-weight: 600; font-size: 0.95rem; color: #212529; line-height: 1.2; margin-bottom: 4px; }
         .product-price-big { font-size: 1.3rem; font-weight: 800; color: #0d6efd; }
         .price-detail-small { font-size: 0.85rem; color: #6c757d; margin-top: 2px; }
+        
+        /* ESTILOS DEL CHECKLIST (MODO SHOPPING) */
         .shopping-item { cursor: pointer; border-left: 5px solid transparent; }
         .shopping-item.status-done { background-color: #d1e7dd; border-left-color: #198754; opacity: 0.6; }
         .shopping-item.status-done .product-name { text-decoration: line-through; }
         .shopping-item.status-issue { background-color: #fff3cd; border-left-color: #ffc107; }
         .status-icon { font-size: 1.5rem; margin-right: 10px; min-width: 30px; text-align: center; }
+        
+        /* Boton eliminar en modo shopping */
         .btn-trash-shop { background: none; border: none; color: #dc3545; font-size: 1.2rem; padding: 0 10px; z-index: 10; }
+
         .qty-control { display: flex; align-items: center; gap: 5px; }
         .btn-circle { width: 32px; height: 32px; border-radius: 50%; border: none; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 1.2rem; padding: 0; cursor: pointer; }
         .btn-minus { background: #e9ecef; color: #dc3545; }
         .btn-plus { background: #0d6efd; color: white; }
         .qty-input { width: 40px; text-align: center; border: 1px solid #dee2e6; border-radius: 5px; font-weight: bold; }
+        
         .cart-bar { position: fixed; bottom: 20px; left: 5%; width: 90%; background: #212529; color: white; border-radius: 50px; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 5px 15px rgba(0,0,0,0.3); z-index: 2000; transition: transform 0.3s; cursor: pointer; transform: translateY(150%); }
         .cart-bar.visible { transform: translateY(0); }
         .btn-ver-pedido { background: #ffc107; color: #212529; border: none; padding: 8px 20px; border-radius: 20px; font-weight: bold; display: flex; align-items: center; gap: 6px; }
@@ -92,40 +108,12 @@
 <script>
     // === CONFIGURACIÓN ===
     const SHEET_URL = "catalogo_completo.csv"; 
-    const CLAVE_ADMIN = "1986"; // <--- CLAVE DE FACU
+    const CLAVE_ADMIN = "1986"; 
     // ======================
 
     let products = []; let cart = {}; let globalMargin = 0; let sellerPhone = ""; let shippingCost = 0; let rawCSV = "";
     let cartModalInstance = null; 
     let isShoppingMode = false; 
-
-    // --- LECTOR UNIVERSAL (LEE TEXTO PLANO Y ENCRIPTADO) ---
-    function leerPedidoUniversal(rawOrder) {
-        // 1. Intentamos leer como JSON directo (Sistema Nuevo)
-        try {
-            // URLSearchParams ya decodifica una vez, a veces necesitamos otra
-            let decoded = decodeURIComponent(rawOrder);
-            if (decoded.startsWith("{")) return JSON.parse(decoded);
-            // Si no empieza con {, capaz es el JSON crudo directo
-            if (rawOrder.startsWith("{")) return JSON.parse(rawOrder);
-        } catch (e) {}
-
-        // 2. Intentamos leer como Base64 Seguro (Sistema Intermedio)
-        try {
-            let base64 = rawOrder.replace(/-/g, '+').replace(/_/g, '/');
-            while (base64.length % 4) { base64 += '='; }
-            return JSON.parse(decodeURIComponent(atob(base64)));
-        } catch (e) {}
-
-        // 3. Intentamos leer como Base64 Viejo (Sistema Original)
-        try {
-            // Fix común: WhatsApp cambia + por espacio
-            let fixed = rawOrder.replace(/ /g, '+');
-            return JSON.parse(decodeURIComponent(atob(fixed)));
-        } catch (e) {}
-
-        throw new Error("No se pudo leer el formato del link.");
-    }
 
     window.onload = function() {
         cartModalInstance = new bootstrap.Modal(document.getElementById('cartModal'));
@@ -145,12 +133,33 @@
             const rawOrder = p.get('order');
             sellerPhone = p.get('w') || ""; 
 
+            // --- LECTOR DE LINK COMPACTO ---
             try {
-                cart = leerPedidoUniversal(rawOrder);
+                // 1. Intentamos el método nuevo (Nombre_Cantidad~Nombre_Cantidad)
+                if (rawOrder.includes("~") || rawOrder.includes("_")) {
+                    cart = {};
+                    const items = rawOrder.split("~");
+                    items.forEach(item => {
+                        // Separamos por el ULTIMO guión bajo (por si el nombre tiene guiones)
+                        const lastUnderscore = item.lastIndexOf("_");
+                        if (lastUnderscore !== -1) {
+                            const nameEncoded = item.substring(0, lastUnderscore);
+                            const qty = item.substring(lastUnderscore + 1);
+                            // Recuperamos el nombre original (con espacios, tildes, etc)
+                            const realName = decodeURIComponent(nameEncoded);
+                            cart[realName] = parseInt(qty);
+                        }
+                    });
+                } else {
+                    // 2. Si no tiene el formato nuevo, probamos el viejo por si acaso
+                    cart = JSON.parse(decodeURIComponent(rawOrder));
+                }
+                
                 cargarProductos(); 
+
             } catch(e) { 
                 console.error(e);
-                alert("❌ ERROR: El link está roto o es incompatible.\n\nPor favor generá un pedido NUEVO para probar el sistema actualizado.");
+                alert("❌ ERROR: El link del pedido es inválido.\n\nPor favor, generá un pedido NUEVO para usar el sistema actualizado.");
             }
             
         } else if (p.get('m') || p.get('w')) {
@@ -198,11 +207,19 @@
     function enviarWhatsapp() {
         if(!sellerPhone) { alert("Error: Link sin vendedor."); return; }
         
-        // --- ESTRATEGIA TEXTO PLANO (LA MÁS SEGURA Y COMPATIBLE) ---
-        // Generamos links largos pero indestructibles
-        const cartString = encodeURIComponent(JSON.stringify(cart));
+        // --- ESTRATEGIA COMPACTA V4 (LA DEFINITIVA) ---
+        // Generamos un string tipo: ProductoA_2~ProductoB_1
+        // Esto es INDESTRUCTIBLE por WhatsApp.
+        let parts = [];
+        for(let name in cart) {
+            // Codificamos el nombre por si tiene caracteres raros
+            let safeName = encodeURIComponent(name); 
+            parts.push(`${safeName}_${cart[name]}`);
+        }
+        const compactString = parts.join("~");
+        
         const cleanUrl = window.location.href.split('?')[0];
-        const shoppingLink = `${cleanUrl}?order=${cartString}&w=${sellerPhone}`;
+        const shoppingLink = `${cleanUrl}?order=${compactString}&w=${sellerPhone}`;
 
         let text = "🛒 *PEDIDO NUEVO:*\n--------------------------------\n";
         let subtotal = 0; let hayPesables = false;
@@ -224,7 +241,7 @@
         window.open(`https://wa.me/${sellerPhone}?text=${encodeURIComponent(text)}`, '_blank');
     }
 
-    // --- RESTO DE FUNCIONES (NO CAMBIAN) ---
+    // --- RESTO DE FUNCIONES ---
     function generarLink() { const phone = document.getElementById("adminPhone").value; const margin = document.getElementById("adminMargin").value; const ship = document.getElementById("adminShipping").value; localStorage.setItem('myPhone', phone); localStorage.setItem('myMargin', margin); localStorage.setItem('myShipping', ship); if(phone && margin) { document.getElementById("linkBox").style.display = "block"; const url = `${window.location.href.split('?')[0]}?w=${phone}&m=${margin}&s=${ship}`; const linkEl = document.getElementById("generatedLink"); linkEl.href = url; linkEl.innerText = url; } }
     function copiarLink() { navigator.clipboard.writeText(document.getElementById("generatedLink").href).then(() => alert("✅ Copiado!")); }
     function renderShoppingList() { const container = document.getElementById("productList"); container.innerHTML = ""; let grandTotal = 0; const cartKeys = Object.keys(cart); if (cartKeys.length === 0) { container.innerHTML = `<div class="text-center mt-5 text-muted"><h4>🗑️ Pedido Vacío</h4><p>Usá el buscador para agregar productos.</p></div>`; return; } for (let name in cart) { const prod = products.find(p => p.name === name); const price = prod ? prod.price : 0; const category = prod ? prod.category : "VARIOS"; const qty = cart[name]; const totalItem = price * qty; grandTotal += totalItem; const html = `<div class="product-card shopping-item" onclick="toggleStatus(this)"><div class="status-icon"><i class="bi bi-circle"></i></div><div style="flex: 1;"><div class="category-label">${category}</div><div class="product-name" style="font-size: 1.1rem">${name}</div><div class="text-muted"><span class="fw-bold text-dark fs-5">${qty} un.</span> <span class="ms-2 small">x $${price.toLocaleString('es-AR')}</span></div></div><div class="d-flex align-items-center gap-2"><div class="fw-bold text-end me-2">$${totalItem.toLocaleString('es-AR')}</div><button class="btn-trash-shop" onclick="event.stopPropagation(); deleteItemInShop('${name}')"><i class="bi bi-trash3"></i></button></div></div>`; container.innerHTML += html; } container.innerHTML += `<div class="mt-4 p-3 bg-white rounded shadow-sm text-end fw-bold fs-4">Total: $${grandTotal.toLocaleString('es-AR')}</div>`; container.innerHTML += `<div class="d-grid gap-2 mt-3 mb-5"><button onclick="enviarWhatsapp()" class="btn btn-primary btn-lg"><i class="bi bi-whatsapp"></i> Confirmar Cambios y Enviar</button></div>`; }
