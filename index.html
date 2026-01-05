@@ -107,9 +107,9 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
     // === CONFIGURACIÓN ===
-// Ahora apunta al archivo que está en la misma carpeta
-const SHEET_URL = "catalogo_completo.csv"; 
-// ======================
+    const SHEET_URL = "catalogo_completo.csv"; 
+    const CLAVE_ADMIN = "1986"; // <--- CAMBIÁ TU CONTRASEÑA ACÁ
+    // ======================
 
     let products = []; let cart = {}; let globalMargin = 0; let sellerPhone = ""; let shippingCost = 0; let rawCSV = "";
     let cartModalInstance = null; 
@@ -125,26 +125,39 @@ const SHEET_URL = "catalogo_completo.csv";
         
         // --- DETECCIÓN DE MODO ---
         if (p.get('order')) {
-            // MODO SHOPPING (REPARTIDOR)
+            // MODO SHOPPING (REPARTIDOR) - SIN CLAVE
             isShoppingMode = true;
             document.body.classList.add("shopping-mode");
             document.getElementById("shoppingTitle").style.display = "block";
             
             try {
-                const orderData = JSON.parse(atob(p.get('order'))); 
+                // FIXED: decodeURIComponent para móviles
+                const orderData = JSON.parse(decodeURIComponent(atob(p.get('order')))); 
                 cart = orderData; 
                 sellerPhone = p.get('w') || ""; 
-            } catch(e) { console.error("Error al leer pedido", e); }
+            } catch(e) { 
+                console.error("Error al leer pedido", e); 
+                // Fallback por si es un link viejo
+                try { cart = JSON.parse(atob(p.get('order'))); } catch(ex){}
+            }
             
             cargarProductos(); 
             
         } else if (p.get('m') || p.get('w')) {
-            // MODO KIOSQUERO
+            // MODO KIOSQUERO - SIN CLAVE
             globalMargin = parseFloat(p.get('m')) || 0; sellerPhone = p.get('w') || ""; shippingCost = parseFloat(p.get('s')) || 0;
             document.getElementById("adminPanel").style.display = "none";
             cargarProductos();
+
         } else {
-            // MODO ADMIN
+            // MODO ADMIN (CONFIG) - PIDE CLAVE 🔒
+            let pass = prompt("🔐 Ingrese Clave de Administrador:");
+            if (pass !== CLAVE_ADMIN) {
+                document.body.innerHTML = "<div style='display:flex;height:100vh;justify-content:center;align-items:center;flex-direction:column;text-align:center'><h1>⛔ Acceso Denegado</h1><p>La clave es incorrecta.</p><button class='btn btn-primary' onclick='location.reload()'>Reintentar</button></div>";
+                return; // Detiene la carga
+            }
+
+            // Si pasa la clave:
             document.body.classList.add("admin-mode");
             document.getElementById("adminPanel").style.display = "block";
             if(localStorage.getItem('myPhone')) document.getElementById('adminPhone').value = localStorage.getItem('myPhone');
@@ -157,13 +170,13 @@ const SHEET_URL = "catalogo_completo.csv";
             cargarProductos();
         }
         
-        // BUSCADOR INTELIGENTE: Si borro el texto en modo shopping, vuelvo a la lista
+        // BUSCADOR INTELIGENTE
         document.getElementById("searchInput").addEventListener("input", function() {
             if (isShoppingMode) {
                 if (this.value.trim() === "") {
-                    renderShoppingList(); // Si está vacío, muestro la lista de compra
+                    renderShoppingList(); 
                 } else {
-                    renderList(products); // Si escribo, muestro el catálogo para agregar
+                    renderList(products); 
                 }
             } else {
                 renderList(products);
@@ -377,7 +390,8 @@ const SHEET_URL = "catalogo_completo.csv";
     function enviarWhatsapp() {
         if(!sellerPhone) { alert("Error: Link sin vendedor."); return; }
         
-        const cartString = btoa(JSON.stringify(cart));
+        // FIXED: encodeURIComponent para móviles
+        const cartString = btoa(encodeURIComponent(JSON.stringify(cart)));
         const cleanUrl = window.location.href.split('?')[0];
         const shoppingLink = `${cleanUrl}?order=${cartString}&w=${sellerPhone}`;
 
@@ -385,10 +399,11 @@ const SHEET_URL = "catalogo_completo.csv";
         let subtotal = 0; let hayPesables = false;
         for(let name in cart) {
             const prod = products.find(p => p.name === name);
-            const itemTotal = prod.price * cart[name];
+            const price = prod ? prod.price : 0; 
+            const itemTotal = price * cart[name];
             subtotal += itemTotal;
-            const aproxMark = prod.isWeighed ? "~" : "";
-            if(prod.isWeighed) hayPesables = true;
+            const aproxMark = (prod && prod.isWeighed) ? "~" : "";
+            if(prod && prod.isWeighed) hayPesables = true;
             text += `📦 *${cart[name]} x* ${name}  _(${aproxMark}$${itemTotal.toLocaleString('es-AR')})_\n`;
         }
         text += "--------------------------------\n";
