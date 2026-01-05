@@ -123,7 +123,6 @@
         
         // --- DETECCIÓN DE MODO ---
         if (p.get('order')) {
-            // MODO SHOPPING (REPARTIDOR)
             isShoppingMode = true;
             document.body.classList.add("shopping-mode");
             document.getElementById("shoppingTitle").style.display = "block";
@@ -131,30 +130,34 @@
             const rawOrder = p.get('order');
             sellerPhone = p.get('w') || ""; 
 
-            // --- LECTOR DE LINK COMPACTO (SOPORTA EL NUEVO Y EL VIEJO) ---
+            // --- LECTURA SEGURA (FORMATO JSON) ---
             try {
-                if (rawOrder.includes("~") || rawOrder.includes("_")) {
-                    // Formato NUEVO (Simple)
-                    cart = {};
-                    const items = rawOrder.split("~");
-                    items.forEach(item => {
-                        const lastUnderscore = item.lastIndexOf("_");
-                        if (lastUnderscore !== -1) {
-                            const nameEncoded = item.substring(0, lastUnderscore);
-                            const qty = item.substring(lastUnderscore + 1);
-                            const realName = decodeURIComponent(nameEncoded);
-                            cart[realName] = parseInt(qty);
-                        }
-                    });
-                } else {
-                    // Formato VIEJO (Por compatibilidad)
-                    cart = JSON.parse(decodeURIComponent(rawOrder));
-                }
+                // Decodificamos la URL (convierte %20 en espacios, etc)
+                const decoded = decodeURIComponent(rawOrder);
+                // Parseamos el JSON
+                cart = JSON.parse(decoded);
+                
                 cargarProductos(); 
 
             } catch(e) { 
                 console.error(e);
-                alert("❌ ERROR: El link del pedido es inválido.\n\nGenerá un pedido NUEVO para usar el sistema actualizado.");
+                // Si falla, es porque el JSON se cortó o está mal formado
+                // Intentamos recuperar la versión "Compacta" anterior por si acaso
+                if (rawOrder.includes("~")) {
+                    try {
+                        cart = {};
+                        rawOrder.split("~").forEach(i => {
+                            let parts = i.split("_");
+                            let q = parts.pop();
+                            let n = decodeURIComponent(parts.join("_"));
+                            if(n && q) cart[n] = parseInt(q);
+                        });
+                        cargarProductos();
+                        return;
+                    } catch(e2){}
+                }
+
+                alert("❌ ERROR CRÍTICO: El link llegó incompleto.\nWhatsApp cortó el mensaje por ser muy largo.\n\nPrueba enviando el pedido en 2 partes si es muy grande.");
             }
             
         } else if (p.get('m') || p.get('w')) {
@@ -202,19 +205,14 @@
     function enviarWhatsapp() {
         if(!sellerPhone) { alert("Error: Link sin vendedor."); return; }
         
-        // Limpieza extra del telefono por si las dudas
         const cleanPhone = sellerPhone.replace(/[^0-9]/g, '');
 
-        let parts = [];
-        for(let name in cart) {
-            let safeName = encodeURIComponent(name); 
-            parts.push(`${safeName}_${cart[name]}`);
-        }
-        const compactString = parts.join("~");
+        // --- FORMATO JSON ESTÁNDAR (Robustez Máxima) ---
+        // encodeURIComponent se encarga de que WhatsApp no rompa nada.
+        const cartString = encodeURIComponent(JSON.stringify(cart));
         
         const cleanUrl = window.location.href.split('?')[0];
-        // Usamos cleanPhone acá también
-        const shoppingLink = `${cleanUrl}?order=${compactString}&w=${cleanPhone}`;
+        const shoppingLink = `${cleanUrl}?order=${cartString}&w=${cleanPhone}`;
 
         let text = "🛒 *PEDIDO NUEVO:*\n--------------------------------\n";
         let subtotal = 0; let hayPesables = false;
@@ -238,19 +236,16 @@
 
     // --- FUNCIONES COMUNES ---
     
-    // MODIFICADO: Limpia el teléfono al generar el link para el kiosquero
     function generarLink() { 
         let phone = document.getElementById("adminPhone").value;
-        // BORRAMOS ESPACIOS Y GUIONES AL VUELO
+        // Limpiamos el telefono al generarlo
         phone = phone.replace(/[^0-9]/g, '');
         
         const margin = document.getElementById("adminMargin").value;
         const ship = document.getElementById("adminShipping").value;
-        
         localStorage.setItem('myPhone', phone); 
         localStorage.setItem('myMargin', margin); 
         localStorage.setItem('myShipping', ship);
-        
         if(phone && margin) { 
             document.getElementById("linkBox").style.display = "block"; 
             const url = `${window.location.href.split('?')[0]}?w=${phone}&m=${margin}&s=${ship}`; 
@@ -259,9 +254,7 @@
             linkEl.innerText = url; 
         } 
     }
-    
     function copiarLink() { navigator.clipboard.writeText(document.getElementById("generatedLink").href).then(() => alert("✅ Copiado!")); }
-    
     function renderShoppingList() { const container = document.getElementById("productList"); container.innerHTML = ""; let grandTotal = 0; const cartKeys = Object.keys(cart); if (cartKeys.length === 0) { container.innerHTML = `<div class="text-center mt-5 text-muted"><h4>🗑️ Pedido Vacío</h4><p>Usá el buscador para agregar productos.</p></div>`; return; } for (let name in cart) { const prod = products.find(p => p.name === name); const price = prod ? prod.price : 0; const category = prod ? prod.category : "VARIOS"; const qty = cart[name]; const totalItem = price * qty; grandTotal += totalItem; const html = `<div class="product-card shopping-item" onclick="toggleStatus(this)"><div class="status-icon"><i class="bi bi-circle"></i></div><div style="flex: 1;"><div class="category-label">${category}</div><div class="product-name" style="font-size: 1.1rem">${name}</div><div class="text-muted"><span class="fw-bold text-dark fs-5">${qty} un.</span> <span class="ms-2 small">x $${price.toLocaleString('es-AR')}</span></div></div><div class="d-flex align-items-center gap-2"><div class="fw-bold text-end me-2">$${totalItem.toLocaleString('es-AR')}</div><button class="btn-trash-shop" onclick="event.stopPropagation(); deleteItemInShop('${name}')"><i class="bi bi-trash3"></i></button></div></div>`; container.innerHTML += html; } container.innerHTML += `<div class="mt-4 p-3 bg-white rounded shadow-sm text-end fw-bold fs-4">Total: $${grandTotal.toLocaleString('es-AR')}</div>`; container.innerHTML += `<div class="d-grid gap-2 mt-3 mb-5"><button onclick="enviarWhatsapp()" class="btn btn-primary btn-lg"><i class="bi bi-whatsapp"></i> Confirmar Cambios y Enviar</button></div>`; }
     function toggleStatus(element) { const icon = element.querySelector(".status-icon i"); if (element.classList.contains("status-done")) { element.classList.remove("status-done"); element.classList.add("status-issue"); icon.className = "bi bi-exclamation-triangle-fill text-warning"; } else if (element.classList.contains("status-issue")) { element.classList.remove("status-issue"); icon.className = "bi bi-circle"; } else { element.classList.add("status-done"); icon.className = "bi bi-check-circle-fill text-success"; } }
     function actualizarPreciosEnVivo() { const val = document.getElementById("adminMargin").value; globalMargin = parseFloat(val) || 0; localStorage.setItem('myMargin', val); if(rawCSV) { products = parseCSV(rawCSV); renderList(products); } generarLink(); }
