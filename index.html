@@ -123,6 +123,9 @@
     let cartModalInstance = null; 
     let isShoppingMode = false; 
     let itemToReplace = null;
+    
+    // NUEVA VARIABLE PARA RECORDAR LOS TACHADOS (MEMORIA)
+    let itemStatus = {}; 
 
     window.onload = function() {
         cartModalInstance = new bootstrap.Modal(document.getElementById('cartModal'));
@@ -141,7 +144,6 @@
             const rawOrder = p.get('order');
             sellerPhone = p.get('w') || ""; 
             shippingCost = parseFloat(p.get('s')) || 0;
-            // IMPORTANTE: Leemos el margen del link para calcular precios reales
             globalMargin = parseFloat(p.get('m')) || 0;
 
             try {
@@ -233,7 +235,6 @@
         const cartString = encodeURIComponent(JSON.stringify(cart));
         const cleanUrl = window.location.href.split('?')[0];
         
-        // AGREGAMOS EL MARGEN AL LINK (para que el repartidor vea los precios bien)
         const shoppingLink = `${cleanUrl}?order=${cartString}&w=${cleanPhone}&s=${shippingCost}&m=${globalMargin}`;
 
         let text = "🛒 *PEDIDO ACTUALIZADO:*\n--------------------------------\n";
@@ -279,7 +280,6 @@
         localStorage.setItem('myShipping', ship);
         if(phone && margin) { 
             document.getElementById("linkBox").style.display = "block"; 
-            // AQUI TAMBIEN SE AGREGA EL MARGEN AL LINK GENERADO
             const url = `${window.location.href.split('?')[0]}?w=${phone}&m=${margin}&s=${ship}`; 
             const linkEl = document.getElementById("generatedLink"); 
             linkEl.href = url; 
@@ -304,9 +304,20 @@
             const totalItem = price * qty; 
             subtotal += totalItem; 
             
+            // LOGICA DE ESTADO (MEMORIA VISUAL)
+            let statusClass = "";
+            let iconClass = "bi-circle";
+            if (itemStatus[name] === 'done') {
+                statusClass = "status-done";
+                iconClass = "bi-check-circle-fill text-success";
+            } else if (itemStatus[name] === 'issue') {
+                statusClass = "status-issue";
+                iconClass = "bi-exclamation-triangle-fill text-warning";
+            }
+
             const html = `
-            <div class="product-card shopping-item" onclick="toggleStatus(this)">
-                <div class="status-icon"><i class="bi bi-circle"></i></div>
+            <div class="product-card shopping-item ${statusClass}" onclick="toggleItemStatus('${name}')">
+                <div class="status-icon"><i class="bi ${iconClass}"></i></div>
                 <div style="flex: 1;">
                     <div class="category-label">${category}</div>
                     <div class="product-name" style="font-size: 1.1rem">${name}</div>
@@ -333,7 +344,17 @@
         container.innerHTML += `<div class="d-grid gap-2 mt-3 mb-5"><button onclick="enviarWhatsapp()" class="btn btn-primary btn-lg"><i class="bi bi-whatsapp"></i> Confirmar Cambios y Enviar</button></div>`; 
     }
     
-    function toggleStatus(element) { const icon = element.querySelector(".status-icon i"); if (element.classList.contains("status-done")) { element.classList.remove("status-done"); element.classList.add("status-issue"); icon.className = "bi bi-exclamation-triangle-fill text-warning"; } else if (element.classList.contains("status-issue")) { element.classList.remove("status-issue"); icon.className = "bi bi-circle"; } else { element.classList.add("status-done"); icon.className = "bi bi-check-circle-fill text-success"; } }
+    // NUEVA FUNCION DE ESTADO QUE ACTUALIZA LA MEMORIA
+    function toggleItemStatus(name) {
+        if (!itemStatus[name]) {
+            itemStatus[name] = 'done';
+        } else if (itemStatus[name] === 'done') {
+            itemStatus[name] = 'issue';
+        } else {
+            delete itemStatus[name];
+        }
+        renderShoppingList();
+    }
     
     function actualizarPreciosEnVivo() { const val = document.getElementById("adminMargin").value; globalMargin = parseFloat(val) || 0; localStorage.setItem('myMargin', val); if(rawCSV) { products = parseCSV(rawCSV); renderList(products); } generarLink(); }
     
@@ -345,13 +366,18 @@
         if (itemToReplace && change > 0) {
             const oldQty = cart[itemToReplace];
             delete cart[itemToReplace];
+            // Tambien borramos el estado del item viejo para que no quede basura
+            delete itemStatus[itemToReplace];
             cart[name] = oldQty;
             cancelarReemplazo();
             return; 
         }
         if(!cart[name]) cart[name]=0; 
         cart[name]+=change; 
-        if(cart[name]<=0) delete cart[name]; 
+        if(cart[name]<=0) {
+            delete cart[name]; 
+            delete itemStatus[name]; // Borrar memoria si se elimina el item
+        }
         
         if(isShoppingMode) { 
             const term = document.getElementById("searchInput").value.trim(); 
@@ -365,17 +391,18 @@
     function manualInput(name, value) { 
         if (itemToReplace) {
              delete cart[itemToReplace];
+             delete itemStatus[itemToReplace];
              cart[name] = parseInt(value);
              cancelarReemplazo();
              return;
         }
         const val=parseInt(value); 
-        if(val>0) cart[name]=val; else delete cart[name]; 
+        if(val>0) cart[name]=val; else { delete cart[name]; delete itemStatus[name]; }
         if(isShoppingMode) renderList(products); else { renderList(products); updateCartBar(); } 
     }
     
     function deleteItem(name) { delete cart[name]; renderList(products); updateCartBar(); if(document.getElementById('cartModal').classList.contains('show')) abrirCarrito(true); }
-    function deleteItemInShop(name) { delete cart[name]; renderShoppingList(); }
+    function deleteItemInShop(name) { delete cart[name]; delete itemStatus[name]; renderShoppingList(); }
     function updateCartBar() { let total = 0; let items = 0; for(let name in cart) { const prod = products.find(p => p.name === name); if(prod) { total += prod.price * cart[name]; items += cart[name]; } } document.getElementById("totalPriceBar").innerText = "$" + total.toLocaleString('es-AR'); document.getElementById("totalItems").innerText = items; const bar = document.getElementById("cartBar"); const isModalOpen = document.getElementById('cartModal').classList.contains('show'); if(items > 0 && !isModalOpen) bar.classList.add("visible"); else bar.classList.remove("visible"); }
     function abrirCarrito(refreshOnly = false) { const container = document.getElementById("cartItemsContainer"); container.innerHTML = ""; let subtotal = 0; document.getElementById("shippingCostInput").value = shippingCost; if(Object.keys(cart).length === 0) container.innerHTML = "<p class='text-center text-muted my-5'>Tu carrito está vacío.</p>"; else { for(let name in cart) { const prod = products.find(p => p.name === name); const itemTotal = prod.price * cart[name]; subtotal += itemTotal; const aproxSign = prod.isWeighed ? "~" : ""; container.innerHTML += `<div style="border-bottom:1px solid #eee;padding:8px 0;display:flex;justify-content:space-between;align-items:center"><div><div class="fw-bold small">${name}</div><div class="text-muted small">${cart[name]} x ${aproxSign}$${prod.price.toLocaleString('es-AR')}</div></div><div class="fw-bold">${aproxSign}$${itemTotal.toLocaleString('es-AR')}</div><button onclick="deleteItem('${name}')" style="border:none;background:none;color:#dc3545"><i class="bi bi-trash"></i></button></div>`; } } const hayPesados = Object.keys(cart).some(n => products.find(p=>p.name===n).isWeighed); document.getElementById("modalFinalPrice").innerText = (hayPesados ? "~" : "") + "$" + (subtotal + shippingCost).toLocaleString('es-AR'); if(!refreshOnly) { document.getElementById("cartBar").classList.remove("visible"); cartModalInstance.show(); } }
     function generarLink() { 
