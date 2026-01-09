@@ -19,6 +19,12 @@
         body.shopping-mode .admin-panel,
         body.shopping-mode .cart-bar { display: none !important; }
         
+        /* MODO SOLO LECTURA (KIOSQUERO FINAL): OCULTA EDICION */
+        body.readonly-mode .btn-trash-shop,
+        body.readonly-mode .btn-replace-shop,
+        body.readonly-mode .search-sticky,
+        body.readonly-mode .btn-final-action { display: none !important; }
+        
         /* En modo shopping, mostramos controles SOLO si estamos buscando (no en la lista checklist) */
         body.shopping-mode .qty-control { display: flex !important; }
 
@@ -58,9 +64,9 @@
 <div id="adminPanel" class="admin-panel container">
     <h5>🛠️ Configuración (Repartidor)</h5>
     <div class="row g-2">
-        <div class="col-4"><label class="small text-muted">WhatsApp</label><input type="text" id="adminPhone" class="form-control form-control-sm" placeholder="Ej: 549261..." oninput="generarLink()"></div>
-        <div class="col-4"><label class="small text-muted">Ganancia %</label><input type="number" id="adminMargin" class="form-control form-control-sm" value="0" placeholder="Ej: 20" oninput="actualizarPreciosEnVivo()"></div>
-        <div class="col-4"><label class="small text-muted">Envío $</label><input type="number" id="adminShipping" class="form-control form-control-sm" value="0" placeholder="Ej: 500" oninput="generarLink()"></div>
+        <div class="col-4"><label class="small text-white">WhatsApp</label><input type="text" id="adminPhone" class="form-control form-control-sm" placeholder="Ej: 549261..." oninput="generarLink()"></div>
+        <div class="col-4"><label class="small text-white">Ganancia %</label><input type="number" id="adminMargin" class="form-control form-control-sm" value="0" placeholder="Ej: 20" oninput="actualizarPreciosEnVivo()"></div>
+        <div class="col-4"><label class="small text-white">Envío $</label><input type="number" id="adminShipping" class="form-control form-control-sm" value="0" placeholder="Ej: 5000" oninput="generarLink()"></div>
     </div>
     <div id="linkBox" class="share-link-box mt-3" style="display:none">
         <span class="text-warning">👇 Link para el Kiosquero:</span><br>
@@ -72,10 +78,10 @@
 <div class="container">
     <div id="shoppingTitle" class="mt-3 mb-2" style="display:none">
         <div class="d-flex justify-content-between align-items-center">
-            <h3 class="fw-bold m-0">📋 Control de Pedido</h3>
-            <span class="badge bg-primary">Modo Edición</span>
+            <h3 class="fw-bold m-0" id="pageTitle">📋 Control de Pedido</h3>
+            <span class="badge bg-primary" id="modeBadge">Modo Edición</span>
         </div>
-        <p class="text-muted small mt-1">
+        <p class="text-muted small mt-1" id="pageSubtitle">
             🟢 1 toque: Listo | 🟡 2 toques: Atención<br>
             Usá 🔄 para reemplazar un producto.
         </p>
@@ -123,8 +129,6 @@
     let cartModalInstance = null; 
     let isShoppingMode = false; 
     let itemToReplace = null;
-    
-    // NUEVA VARIABLE PARA RECORDAR LOS TACHADOS (MEMORIA)
     let itemStatus = {}; 
 
     window.onload = function() {
@@ -141,30 +145,41 @@
             document.body.classList.add("shopping-mode");
             document.getElementById("shoppingTitle").style.display = "block";
             
+            // DETECCION MODO SOLO LECTURA (RO)
+            if (p.get('ro')) {
+                document.body.classList.add("readonly-mode");
+                document.getElementById("pageTitle").innerText = "📦 Pedido Final";
+                document.getElementById("modeBadge").className = "badge bg-success";
+                document.getElementById("modeBadge").innerText = "Solo Lectura";
+                document.getElementById("pageSubtitle").innerHTML = "Lista para controlar la mercadería.<br>Tocá los productos para tacharlos.";
+            }
+            
             const rawOrder = p.get('order');
             sellerPhone = p.get('w') || ""; 
             shippingCost = parseFloat(p.get('s')) || 0;
             globalMargin = parseFloat(p.get('m')) || 0;
 
             try {
-                const decoded = decodeURIComponent(rawOrder);
-                cart = JSON.parse(decoded);
+                try {
+                    cart = JSON.parse(decodeURIComponent(rawOrder));
+                } catch(eJson) {
+                    if (rawOrder.includes("~") || rawOrder.includes("_")) {
+                        cart = {};
+                        const items = rawOrder.split("~");
+                        items.forEach(item => {
+                            const lastUnderscore = item.lastIndexOf("_");
+                            if (lastUnderscore !== -1) {
+                                const nameEncoded = item.substring(0, lastUnderscore);
+                                const qty = item.substring(lastUnderscore + 1);
+                                const realName = decodeURIComponent(nameEncoded);
+                                cart[realName] = parseInt(qty);
+                            }
+                        });
+                    }
+                }
                 cargarProductos(); 
             } catch(e) { 
                 console.error(e);
-                if (rawOrder.includes("~")) {
-                    try {
-                        cart = {};
-                        rawOrder.split("~").forEach(i => {
-                            let parts = i.split("_");
-                            let q = parts.pop();
-                            let n = decodeURIComponent(parts.join("_"));
-                            if(n && q) cart[n] = parseInt(q);
-                        });
-                        cargarProductos();
-                        return;
-                    } catch(e2){}
-                }
                 alert("❌ ERROR: Link incompleto o dañado.");
             }
             
@@ -188,7 +203,7 @@
                 document.getElementById('adminMargin').value = localStorage.getItem('myMargin');
                 globalMargin = parseFloat(localStorage.getItem('myMargin')) || 0;
             }
-            if(localStorage.getItem('myShipping')) document.getElementById('adminShipping').value = localStorage.getItem('myShipping');
+            if(localStorage.getItem('myShipping')) document.getElementById('adminShipping').value = localStorage.getItem('adminShipping');
             generarLink();
             cargarProductos();
         }
@@ -210,7 +225,6 @@
         }).catch(e => { console.error(e); document.getElementById("productList").innerHTML = `<div class="alert alert-danger text-center">Error cargando datos.</div>`; });
     }
 
-    // --- LÓGICA DE REEMPLAZO ---
     function iniciarReemplazo(oldName) {
         event.stopPropagation(); 
         itemToReplace = oldName;
@@ -232,10 +246,23 @@
         if(!sellerPhone) { alert("Error: Link sin vendedor."); return; }
         
         const cleanPhone = sellerPhone.replace(/[^0-9]/g, '');
-        const cartString = encodeURIComponent(JSON.stringify(cart));
+        
+        let parts = [];
+        for(let name in cart) {
+            let safeName = encodeURIComponent(name); 
+            parts.push(`${safeName}_${cart[name]}`);
+        }
+        const compactString = parts.join("~");
+        
         const cleanUrl = window.location.href.split('?')[0];
         
-        const shoppingLink = `${cleanUrl}?order=${cartString}&w=${cleanPhone}&s=${shippingCost}&m=${globalMargin}`;
+        // --- LOGICA DE BLOQUEO ---
+        // Si estamos en modo Shopping (Repartidor), significa que estamos enviando
+        // la lista FINAL al kiosquero. Le agregamos "&ro=1" para bloquearla.
+        let shoppingLink = `${cleanUrl}?order=${compactString}&w=${cleanPhone}&s=${shippingCost}&m=${globalMargin}`;
+        if (isShoppingMode) {
+            shoppingLink += "&ro=1";
+        }
 
         let text = "🛒 *PEDIDO ACTUALIZADO:*\n--------------------------------\n";
         let subtotal = 0; let hayPesables = false;
@@ -304,7 +331,6 @@
             const totalItem = price * qty; 
             subtotal += totalItem; 
             
-            // LOGICA DE ESTADO (MEMORIA VISUAL)
             let statusClass = "";
             let iconClass = "bi-circle";
             if (itemStatus[name] === 'done') {
@@ -341,10 +367,10 @@
         htmlTotal += `</div>`;
         
         container.innerHTML += htmlTotal;
-        container.innerHTML += `<div class="d-grid gap-2 mt-3 mb-5"><button onclick="enviarWhatsapp()" class="btn btn-primary btn-lg"><i class="bi bi-whatsapp"></i> Confirmar Cambios y Enviar</button></div>`; 
+        // AGREGADA CLASE "btn-final-action" PARA PODER OCULTARLO EN MODO LECTURA
+        container.innerHTML += `<div class="d-grid gap-2 mt-3 mb-5"><button onclick="enviarWhatsapp()" class="btn btn-primary btn-lg btn-final-action"><i class="bi bi-whatsapp"></i> Confirmar Cambios y Enviar</button></div>`; 
     }
     
-    // NUEVA FUNCION DE ESTADO QUE ACTUALIZA LA MEMORIA
     function toggleItemStatus(name) {
         if (!itemStatus[name]) {
             itemStatus[name] = 'done';
@@ -366,7 +392,6 @@
         if (itemToReplace && change > 0) {
             const oldQty = cart[itemToReplace];
             delete cart[itemToReplace];
-            // Tambien borramos el estado del item viejo para que no quede basura
             delete itemStatus[itemToReplace];
             cart[name] = oldQty;
             cancelarReemplazo();
@@ -376,7 +401,7 @@
         cart[name]+=change; 
         if(cart[name]<=0) {
             delete cart[name]; 
-            delete itemStatus[name]; // Borrar memoria si se elimina el item
+            delete itemStatus[name]; 
         }
         
         if(isShoppingMode) { 
