@@ -360,14 +360,15 @@
         
         let htmlTotal = `<div class="mt-4 p-3 bg-white rounded shadow-sm">`;
         htmlTotal += `<div class="d-flex justify-content-between text-muted"><span>Subtotal:</span> <span>$${subtotal.toLocaleString('es-AR')}</span></div>`;
-        if(shippingCost > 0) {
-            htmlTotal += `<div class="d-flex justify-content-between text-muted"><span>Envío:</span> <span>$${shippingCost.toLocaleString('es-AR')}</span></div>`;
-        }
+        
+        let envioTexto = shippingCost > 0 ? `$${shippingCost.toLocaleString('es-AR')}` : "Gratis";
+        let envioColor = shippingCost > 0 ? "" : "text-success fw-bold";
+        htmlTotal += `<div class="d-flex justify-content-between text-muted"><span>Envío:</span> <span class="${envioColor}">${envioTexto}</span></div>`;
+        
         htmlTotal += `<div class="d-flex justify-content-between fw-bold fs-4 mt-2 pt-2 border-top"><span>Total:</span> <span>$${(subtotal + shippingCost).toLocaleString('es-AR')}</span></div>`;
         htmlTotal += `</div>`;
         
         container.innerHTML += htmlTotal;
-        // AGREGADA CLASE "btn-final-action" PARA PODER OCULTARLO EN MODO LECTURA
         container.innerHTML += `<div class="d-grid gap-2 mt-3 mb-5"><button onclick="enviarWhatsapp()" class="btn btn-primary btn-lg btn-final-action"><i class="bi bi-whatsapp"></i> Confirmar Cambios y Enviar</button></div>`; 
     }
     
@@ -390,10 +391,16 @@
     
     function updateCart(name, change) { 
         if (itemToReplace && change > 0) {
-            const oldQty = cart[itemToReplace];
+            const qtyToMove = cart[itemToReplace]; // GUARDAMOS CANTIDAD VIEJA (EJ: 1)
+            
+            // 1. Borramos el viejo
             delete cart[itemToReplace];
             delete itemStatus[itemToReplace];
-            cart[name] = oldQty;
+
+            // 2. Sumamos al nuevo
+            if(!cart[name]) cart[name] = 0; // Si no habia, empieza en 0
+            cart[name] += qtyToMove; // Sumamos (ej: 1 + 1 = 2)
+
             cancelarReemplazo();
             return; 
         }
@@ -415,9 +422,15 @@
     
     function manualInput(name, value) { 
         if (itemToReplace) {
+             // En input manual asumimos que el usuario pone el numero final que quiere
+             // Ej: Si pone "2", es porque quiere 2 en total.
+             const qtyFinal = parseInt(value); 
+             
              delete cart[itemToReplace];
              delete itemStatus[itemToReplace];
-             cart[name] = parseInt(value);
+             
+             cart[name] = qtyFinal;
+             
              cancelarReemplazo();
              return;
         }
