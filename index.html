@@ -17,15 +17,10 @@
 
         /* MODO SHOPPING (REPARTIDOR): OCULTA COSAS DE ADMIN */
         body.shopping-mode .admin-panel,
-        body.shopping-mode .cart-bar { display: none !important; }
+        body.shopping-mode .cart-bar,
+        body.shopping-mode .category-nav { display: none !important; } /* Ocultar filtro categ en modo shopping */
         
-        /* MODO SOLO LECTURA (KIOSQUERO FINAL): OCULTA EDICION */
-        body.readonly-mode .btn-trash-shop,
-        body.readonly-mode .btn-replace-shop,
-        body.readonly-mode .search-sticky,
-        body.readonly-mode .btn-final-action { display: none !important; }
-        
-        /* En modo shopping, mostramos controles SOLO si estamos buscando (no en la lista checklist) */
+        /* En modo shopping, mostramos controles SOLO si estamos buscando */
         body.shopping-mode .qty-control { display: flex !important; }
 
         .admin-panel { background: #343a40; color: white; padding: 15px; border-radius: 0 0 15px 15px; margin-bottom: 20px; display: none; }
@@ -54,7 +49,13 @@
         .cart-bar.visible { transform: translateY(0); }
         .btn-ver-pedido { background: #ffc107; color: #212529; border: none; padding: 8px 20px; border-radius: 20px; font-weight: bold; display: flex; align-items: center; gap: 6px; }
         .modal-total { font-size: 1.5rem; font-weight: 800; color: #212529; text-align: right; margin-top: 15px; border-top: 2px solid #eee; padding-top: 15px;}
-        .search-sticky { position: sticky; top: 0; z-index: 1000; background: #f0f2f5; padding: 10px 0; }
+        
+        /* ESTILOS DE LA BARRA DE CATEGORÍAS */
+        .search-sticky { position: sticky; top: 0; z-index: 1000; background: #f0f2f5; padding: 10px 0; border-bottom: 1px solid #e0e0e0;}
+        .category-nav { display: flex; overflow-x: auto; gap: 8px; padding-bottom: 8px; margin-top: 10px; scrollbar-width: none; -ms-overflow-style: none; }
+        .category-nav::-webkit-scrollbar { display: none; }
+        .cat-btn { white-space: nowrap; border-radius: 20px; padding: 5px 15px; border: 1px solid #dee2e6; background: white; color: #495057; font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: 0.2s; }
+        .cat-btn.active { background: #0d6efd; color: white; border-color: #0d6efd; }
         
         .replace-mode-alert { background: #fff3cd; color: #856404; padding: 10px; font-size: 0.9rem; border-bottom: 1px solid #ffeeba; display: none; text-align: center; }
     </style>
@@ -64,9 +65,9 @@
 <div id="adminPanel" class="admin-panel container">
     <h5>🛠️ Configuración (Repartidor)</h5>
     <div class="row g-2">
-        <div class="col-4"><label class="small text-white">WhatsApp</label><input type="text" id="adminPhone" class="form-control form-control-sm" placeholder="Ej: 549261..." oninput="generarLink()"></div>
-        <div class="col-4"><label class="small text-white">Ganancia %</label><input type="number" id="adminMargin" class="form-control form-control-sm" value="0" placeholder="Ej: 20" oninput="actualizarPreciosEnVivo()"></div>
-        <div class="col-4"><label class="small text-white">Envío $</label><input type="number" id="adminShipping" class="form-control form-control-sm" value="0" placeholder="Ej: 5000" oninput="generarLink()"></div>
+        <div class="col-4"><label class="small text-muted">WhatsApp</label><input type="text" id="adminPhone" class="form-control form-control-sm" placeholder="Ej: 549261..." oninput="generarLink()"></div>
+        <div class="col-4"><label class="small text-muted">Ganancia %</label><input type="number" id="adminMargin" class="form-control form-control-sm" value="0" placeholder="Ej: 20" oninput="actualizarPreciosEnVivo()"></div>
+        <div class="col-4"><label class="small text-muted">Envío $</label><input type="number" id="adminShipping" class="form-control form-control-sm" value="0" placeholder="Ej: 500" oninput="generarLink()"></div>
     </div>
     <div id="linkBox" class="share-link-box mt-3" style="display:none">
         <span class="text-warning">👇 Link para el Kiosquero:</span><br>
@@ -78,10 +79,10 @@
 <div class="container">
     <div id="shoppingTitle" class="mt-3 mb-2" style="display:none">
         <div class="d-flex justify-content-between align-items-center">
-            <h3 class="fw-bold m-0" id="pageTitle">📋 Control de Pedido</h3>
-            <span class="badge bg-primary" id="modeBadge">Modo Edición</span>
+            <h3 class="fw-bold m-0">📋 Control de Pedido</h3>
+            <span class="badge bg-primary">Modo Edición</span>
         </div>
-        <p class="text-muted small mt-1" id="pageSubtitle">
+        <p class="text-muted small mt-1">
             🟢 1 toque: Listo | 🟡 2 toques: Atención<br>
             Usá 🔄 para reemplazar un producto.
         </p>
@@ -92,8 +93,12 @@
             🔄 <b>Modo Reemplazo:</b> Buscá el producto nuevo para cambiarlo por <b id="replaceTargetName">...</b>
             <button class="btn btn-sm btn-link text-danger p-0 ms-2" onclick="cancelarReemplazo()">(Cancelar)</button>
         </div>
-        <input type="text" id="searchInput" class="form-control border-0 py-2 shadow-sm rounded-pill" placeholder="🔍 Buscar para agregar o reemplazar...">
+        <input type="text" id="searchInput" class="form-control border-0 py-2 shadow-sm rounded-pill" placeholder="🔍 Buscar producto...">
+        
+        <div id="categoryContainer" class="category-nav">
+            </div>
     </div>
+    
     <div id="productList">
         <div class="text-center mt-5 pt-5"><div class="spinner-border text-primary"></div><p class="mt-2 text-muted small">Cargando...</p></div>
     </div>
@@ -121,7 +126,7 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
     // === CONFIGURACIÓN ===
-    const SHEET_URL = "https://docs.google.com/spreadsheets/d/1Y9NSK3IoCKD8Btw30jrBKKMcB0Mde_CHZ4v4kb9MXNg/export?format=csv"; 
+    const SHEET_URL = "https://docs.google.com/spreadsheets/d/1Y9NSK3IoCKD8Btw30jrBKKMcB0Mde_CHZ4v4kb9MXNg/export?format=csv";
     const CLAVE_ADMIN = "1986"; 
     // ======================
 
@@ -130,6 +135,9 @@
     let isShoppingMode = false; 
     let itemToReplace = null;
     let itemStatus = {}; 
+    
+    // NUEVA VARIABLE PARA FILTRO
+    let currentCategory = "TODOS";
 
     window.onload = function() {
         cartModalInstance = new bootstrap.Modal(document.getElementById('cartModal'));
@@ -139,20 +147,10 @@
 
         const p = new URLSearchParams(window.location.search);
         
-        // --- DETECCIÓN DE MODO ---
         if (p.get('order')) {
             isShoppingMode = true;
             document.body.classList.add("shopping-mode");
             document.getElementById("shoppingTitle").style.display = "block";
-            
-            // DETECCION MODO SOLO LECTURA (RO)
-            if (p.get('ro')) {
-                document.body.classList.add("readonly-mode");
-                document.getElementById("pageTitle").innerText = "📦 Pedido Final";
-                document.getElementById("modeBadge").className = "badge bg-success";
-                document.getElementById("modeBadge").innerText = "Solo Lectura";
-                document.getElementById("pageSubtitle").innerHTML = "Lista para controlar la mercadería.<br>Tocá los productos para tacharlos.";
-            }
             
             const rawOrder = p.get('order');
             sellerPhone = p.get('w') || ""; 
@@ -160,37 +158,33 @@
             globalMargin = parseFloat(p.get('m')) || 0;
 
             try {
-                try {
-                    cart = JSON.parse(decodeURIComponent(rawOrder));
-                } catch(eJson) {
-                    if (rawOrder.includes("~") || rawOrder.includes("_")) {
-                        cart = {};
-                        const items = rawOrder.split("~");
-                        items.forEach(item => {
-                            const lastUnderscore = item.lastIndexOf("_");
-                            if (lastUnderscore !== -1) {
-                                const nameEncoded = item.substring(0, lastUnderscore);
-                                const qty = item.substring(lastUnderscore + 1);
-                                const realName = decodeURIComponent(nameEncoded);
-                                cart[realName] = parseInt(qty);
-                            }
-                        });
-                    }
-                }
+                const decoded = decodeURIComponent(rawOrder);
+                cart = JSON.parse(decoded);
                 cargarProductos(); 
             } catch(e) { 
                 console.error(e);
+                if (rawOrder.includes("~")) {
+                    try {
+                        cart = {};
+                        rawOrder.split("~").forEach(i => {
+                            let parts = i.split("_");
+                            let q = parts.pop();
+                            let n = decodeURIComponent(parts.join("_"));
+                            if(n && q) cart[n] = parseInt(q);
+                        });
+                        cargarProductos();
+                        return;
+                    } catch(e2){}
+                }
                 alert("❌ ERROR: Link incompleto o dañado.");
             }
             
         } else if (p.get('m') || p.get('w')) {
-            // MODO KIOSQUERO
             globalMargin = parseFloat(p.get('m')) || 0; sellerPhone = p.get('w') || ""; shippingCost = parseFloat(p.get('s')) || 0;
             document.getElementById("adminPanel").style.display = "none";
             cargarProductos();
 
         } else {
-            // MODO ADMIN
             let pass = prompt("🔐 Ingrese Clave de Administrador:");
             if (pass !== CLAVE_ADMIN) {
                 document.body.innerHTML = "<div style='display:flex;height:100vh;justify-content:center;align-items:center;flex-direction:column;text-align:center'><h1>⛔ Acceso Denegado</h1><p>La clave es incorrecta.</p><button class='btn btn-primary' onclick='location.reload()'>Reintentar</button></div>";
@@ -203,7 +197,7 @@
                 document.getElementById('adminMargin').value = localStorage.getItem('myMargin');
                 globalMargin = parseFloat(localStorage.getItem('myMargin')) || 0;
             }
-            if(localStorage.getItem('myShipping')) document.getElementById('adminShipping').value = localStorage.getItem('adminShipping');
+            if(localStorage.getItem('myShipping')) document.getElementById('adminShipping').value = localStorage.getItem('myShipping');
             generarLink();
             cargarProductos();
         }
@@ -221,10 +215,42 @@
         fetch(SHEET_URL).then(r => r.ok ? r.text() : Promise.reject(r.status)).then(csv => {
             rawCSV = csv; 
             products = parseCSV(csv); 
+            crearBotoneraCategorias(); // <--- Llama a crear la botonera
             if(isShoppingMode) renderShoppingList(); else renderList(products); 
         }).catch(e => { console.error(e); document.getElementById("productList").innerHTML = `<div class="alert alert-danger text-center">Error cargando datos.</div>`; });
     }
 
+    // --- NUEVA LÓGICA DE CATEGORÍAS ---
+    function crearBotoneraCategorias() {
+        if(isShoppingMode) return; // En modo shopping (repartidor) no hace falta el filtro
+        
+        const container = document.getElementById("categoryContainer");
+        // Extraer categorías únicas de los productos (y limpiar vacíos)
+        const categoriasSet = new Set(products.map(p => p.category));
+        const categoriasArr = ["TODOS", ...Array.from(categoriasSet).filter(c => c && c.trim() !== "")].sort();
+        
+        container.innerHTML = "";
+        categoriasArr.forEach(cat => {
+            const btn = document.createElement("button");
+            btn.className = `cat-btn ${cat === "TODOS" ? "active" : ""}`;
+            btn.innerText = cat;
+            btn.onclick = function() {
+                // Sacar el estado active de todos los botones
+                document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
+                // Ponérselo al que clickeó
+                this.classList.add('active');
+                
+                currentCategory = cat;
+                renderList(products);
+                // Si el usuario toca una categoría, limpiar el buscador para que se vea completo
+                document.getElementById("searchInput").value = "";
+                window.scrollTo({top: 0, behavior: 'smooth'});
+            };
+            container.appendChild(btn);
+        });
+    }
+
+    // --- LÓGICA DE REEMPLAZO ---
     function iniciarReemplazo(oldName) {
         event.stopPropagation(); 
         itemToReplace = oldName;
@@ -246,23 +272,10 @@
         if(!sellerPhone) { alert("Error: Link sin vendedor."); return; }
         
         const cleanPhone = sellerPhone.replace(/[^0-9]/g, '');
-        
-        let parts = [];
-        for(let name in cart) {
-            let safeName = encodeURIComponent(name); 
-            parts.push(`${safeName}_${cart[name]}`);
-        }
-        const compactString = parts.join("~");
-        
+        const cartString = encodeURIComponent(JSON.stringify(cart));
         const cleanUrl = window.location.href.split('?')[0];
         
-        // --- LOGICA DE BLOQUEO ---
-        // Si estamos en modo Shopping (Repartidor), significa que estamos enviando
-        // la lista FINAL al kiosquero. Le agregamos "&ro=1" para bloquearla.
-        let shoppingLink = `${cleanUrl}?order=${compactString}&w=${cleanPhone}&s=${shippingCost}&m=${globalMargin}`;
-        if (isShoppingMode) {
-            shoppingLink += "&ro=1";
-        }
+        const shoppingLink = `${cleanUrl}?order=${cartString}&w=${cleanPhone}&s=${shippingCost}&m=${globalMargin}`;
 
         let text = "🛒 *PEDIDO ACTUALIZADO:*\n--------------------------------\n";
         let subtotal = 0; let hayPesables = false;
@@ -295,8 +308,6 @@
         window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(text)}`, '_blank');
     }
 
-    // --- FUNCIONES COMUNES ---
-    
     function generarLink() { 
         let phone = document.getElementById("adminPhone").value;
         phone = phone.replace(/[^0-9]/g, '');
@@ -360,16 +371,14 @@
         
         let htmlTotal = `<div class="mt-4 p-3 bg-white rounded shadow-sm">`;
         htmlTotal += `<div class="d-flex justify-content-between text-muted"><span>Subtotal:</span> <span>$${subtotal.toLocaleString('es-AR')}</span></div>`;
-        
-        let envioTexto = shippingCost > 0 ? `$${shippingCost.toLocaleString('es-AR')}` : "Gratis";
-        let envioColor = shippingCost > 0 ? "" : "text-success fw-bold";
-        htmlTotal += `<div class="d-flex justify-content-between text-muted"><span>Envío:</span> <span class="${envioColor}">${envioTexto}</span></div>`;
-        
+        if(shippingCost > 0) {
+            htmlTotal += `<div class="d-flex justify-content-between text-muted"><span>Envío:</span> <span>$${shippingCost.toLocaleString('es-AR')}</span></div>`;
+        }
         htmlTotal += `<div class="d-flex justify-content-between fw-bold fs-4 mt-2 pt-2 border-top"><span>Total:</span> <span>$${(subtotal + shippingCost).toLocaleString('es-AR')}</span></div>`;
         htmlTotal += `</div>`;
         
         container.innerHTML += htmlTotal;
-        container.innerHTML += `<div class="d-grid gap-2 mt-3 mb-5"><button onclick="enviarWhatsapp()" class="btn btn-primary btn-lg btn-final-action"><i class="bi bi-whatsapp"></i> Confirmar Cambios y Enviar</button></div>`; 
+        container.innerHTML += `<div class="d-grid gap-2 mt-3 mb-5"><button onclick="enviarWhatsapp()" class="btn btn-primary btn-lg"><i class="bi bi-whatsapp"></i> Confirmar Cambios y Enviar</button></div>`; 
     }
     
     function toggleItemStatus(name) {
@@ -387,20 +396,47 @@
     
     function parseCSV(csvText) { const lines = csvText.split("\n"); const result = []; for (let i = 1; i < lines.length; i++) { const line = lines[i].trim(); if (!line) continue; const cols = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/); if (cols.length < 2) continue; let name = cols[0] ? cols[0].trim().replace(/^"|"$/g, '') : "Sin Nombre"; let priceStr = cols[1] ? cols[1].trim().replace(/^"|"$/g, '') : "0"; const category = cols[2] ? cols[2].trim().replace(/^"|"$/g, '') : "VARIOS"; const basePrice = parseFloat(priceStr.replace("$", "").replace(",", "")) || 0; let weight = 1; let isWeighed = false; const match = name.match(/\{(\d+(\.\d+)?)\}/); if (match) { weight = parseFloat(match[1]); name = name.replace(match[0], "").trim(); isWeighed = true; } if (name && basePrice > 0) { const unitPrice = basePrice * (1 + (globalMargin / 100)); const finalPrice = Math.ceil(unitPrice * weight); result.push({ name: name, category: category, price: finalPrice, basePriceKg: Math.ceil(unitPrice), weight: weight, isWeighed: isWeighed }); } } return result; }
     
-    function renderList(list) { const container = document.getElementById("productList"); container.innerHTML = ""; const term = document.getElementById("searchInput").value.toLowerCase(); const filtered = list.filter(p => p.name.toLowerCase().includes(term) || p.category.toLowerCase().includes(term)); if (filtered.length === 0) { container.innerHTML = `<div class="text-center mt-4 text-muted">No hay coincidencias.</div>`; return; } filtered.forEach(prod => { const qty = cart[prod.name] || 0; let mainPrice = `$${prod.basePriceKg.toLocaleString('es-AR')}`; let subPrice = ""; if (prod.isWeighed) { mainPrice = `$${prod.basePriceKg.toLocaleString('es-AR')} <span style="font-size:0.8rem; font-weight:normal; color:#666">x kg</span>`; subPrice = `Pieza aprox: $${prod.price.toLocaleString('es-AR')} (~${prod.weight}kg)`; } const html = `<div class="product-card"><div style="flex: 1; padding-right: 10px;"><div class="category-label">${prod.category}</div><div class="product-name">${prod.name}</div><div class="product-price-big">${mainPrice}</div><div class="price-detail-small">${subPrice}</div></div><div class="qty-control"><button class="btn-circle btn-minus" onclick="updateCart('${prod.name}', -1)">-</button><input type="number" class="qty-input" value="${qty}" onchange="manualInput('${prod.name}', this.value)"><button class="btn-circle btn-plus" onclick="updateCart('${prod.name}', 1)">+</button></div></div>`; container.innerHTML += html; }); }
+    // --- NUEVO RENDERLIST CON SOPORTE DE FILTRO ---
+    function renderList(list) { 
+        const container = document.getElementById("productList"); 
+        container.innerHTML = ""; 
+        const term = document.getElementById("searchInput").value.toLowerCase(); 
+        
+        // Filtrar la lista
+        let filtered = list.filter(p => {
+            // 1. Filtro por categoría (si no es TODOS)
+            if (currentCategory !== "TODOS" && p.category !== currentCategory) return false;
+            // 2. Filtro por búsqueda de texto
+            if (term !== "") {
+                return p.name.toLowerCase().includes(term) || p.category.toLowerCase().includes(term);
+            }
+            return true;
+        });
+
+        if (filtered.length === 0) { 
+            container.innerHTML = `<div class="text-center mt-4 text-muted">No hay coincidencias en esta categoría.</div>`; 
+            return; 
+        } 
+        
+        filtered.forEach(prod => { 
+            const qty = cart[prod.name] || 0; 
+            let mainPrice = `$${prod.basePriceKg.toLocaleString('es-AR')}`; 
+            let subPrice = ""; 
+            if (prod.isWeighed) { 
+                mainPrice = `$${prod.basePriceKg.toLocaleString('es-AR')} <span style="font-size:0.8rem; font-weight:normal; color:#666">x kg</span>`; 
+                subPrice = `Pieza aprox: $${prod.price.toLocaleString('es-AR')} (~${prod.weight}kg)`; 
+            } 
+            const html = `<div class="product-card"><div style="flex: 1; padding-right: 10px;"><div class="category-label">${prod.category}</div><div class="product-name">${prod.name}</div><div class="product-price-big">${mainPrice}</div><div class="price-detail-small">${subPrice}</div></div><div class="qty-control"><button class="btn-circle btn-minus" onclick="updateCart('${prod.name}', -1)">-</button><input type="number" class="qty-input" value="${qty}" onchange="manualInput('${prod.name}', this.value)"><button class="btn-circle btn-plus" onclick="updateCart('${prod.name}', 1)">+</button></div></div>`; 
+            container.innerHTML += html; 
+        }); 
+    }
     
     function updateCart(name, change) { 
         if (itemToReplace && change > 0) {
-            const qtyToMove = cart[itemToReplace]; // GUARDAMOS CANTIDAD VIEJA (EJ: 1)
-            
-            // 1. Borramos el viejo
+            const oldQty = cart[itemToReplace];
             delete cart[itemToReplace];
             delete itemStatus[itemToReplace];
-
-            // 2. Sumamos al nuevo
-            if(!cart[name]) cart[name] = 0; // Si no habia, empieza en 0
-            cart[name] += qtyToMove; // Sumamos (ej: 1 + 1 = 2)
-
+            cart[name] = oldQty;
             cancelarReemplazo();
             return; 
         }
@@ -422,15 +458,9 @@
     
     function manualInput(name, value) { 
         if (itemToReplace) {
-             // En input manual asumimos que el usuario pone el numero final que quiere
-             // Ej: Si pone "2", es porque quiere 2 en total.
-             const qtyFinal = parseInt(value); 
-             
              delete cart[itemToReplace];
              delete itemStatus[itemToReplace];
-             
-             cart[name] = qtyFinal;
-             
+             cart[name] = parseInt(value);
              cancelarReemplazo();
              return;
         }
@@ -443,24 +473,6 @@
     function deleteItemInShop(name) { delete cart[name]; delete itemStatus[name]; renderShoppingList(); }
     function updateCartBar() { let total = 0; let items = 0; for(let name in cart) { const prod = products.find(p => p.name === name); if(prod) { total += prod.price * cart[name]; items += cart[name]; } } document.getElementById("totalPriceBar").innerText = "$" + total.toLocaleString('es-AR'); document.getElementById("totalItems").innerText = items; const bar = document.getElementById("cartBar"); const isModalOpen = document.getElementById('cartModal').classList.contains('show'); if(items > 0 && !isModalOpen) bar.classList.add("visible"); else bar.classList.remove("visible"); }
     function abrirCarrito(refreshOnly = false) { const container = document.getElementById("cartItemsContainer"); container.innerHTML = ""; let subtotal = 0; document.getElementById("shippingCostInput").value = shippingCost; if(Object.keys(cart).length === 0) container.innerHTML = "<p class='text-center text-muted my-5'>Tu carrito está vacío.</p>"; else { for(let name in cart) { const prod = products.find(p => p.name === name); const itemTotal = prod.price * cart[name]; subtotal += itemTotal; const aproxSign = prod.isWeighed ? "~" : ""; container.innerHTML += `<div style="border-bottom:1px solid #eee;padding:8px 0;display:flex;justify-content:space-between;align-items:center"><div><div class="fw-bold small">${name}</div><div class="text-muted small">${cart[name]} x ${aproxSign}$${prod.price.toLocaleString('es-AR')}</div></div><div class="fw-bold">${aproxSign}$${itemTotal.toLocaleString('es-AR')}</div><button onclick="deleteItem('${name}')" style="border:none;background:none;color:#dc3545"><i class="bi bi-trash"></i></button></div>`; } } const hayPesados = Object.keys(cart).some(n => products.find(p=>p.name===n).isWeighed); document.getElementById("modalFinalPrice").innerText = (hayPesados ? "~" : "") + "$" + (subtotal + shippingCost).toLocaleString('es-AR'); if(!refreshOnly) { document.getElementById("cartBar").classList.remove("visible"); cartModalInstance.show(); } }
-    function generarLink() { 
-        let phone = document.getElementById("adminPhone").value;
-        phone = phone.replace(/[^0-9]/g, '');
-        const margin = document.getElementById("adminMargin").value;
-        const ship = document.getElementById("adminShipping").value;
-        localStorage.setItem('myPhone', phone); 
-        localStorage.setItem('myMargin', margin); 
-        localStorage.setItem('myShipping', ship);
-        if(phone && margin) { 
-            document.getElementById("linkBox").style.display = "block"; 
-            const url = `${window.location.href.split('?')[0]}?w=${phone}&m=${margin}&s=${ship}`; 
-            const linkEl = document.getElementById("generatedLink"); 
-            linkEl.href = url; 
-            linkEl.innerText = url; 
-        } 
-    }
-    function copiarLink() { navigator.clipboard.writeText(document.getElementById("generatedLink").href).then(() => alert("✅ Copiado!")); }
 </script>
 </body>
 </html>
-
