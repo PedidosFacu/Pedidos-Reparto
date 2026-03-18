@@ -50,8 +50,6 @@
         .cat-btn.active { background: #0d6efd; color: white; }
         
         .replace-mode-alert { background: #fff3cd; color: #856404; padding: 10px; font-size: 0.9rem; border-bottom: 1px solid #ffeeba; display: none; text-align: center; }
-        
-        /* NUEVO: INPUT PARA EL PESO EN EL CHECKLIST */
         .weight-input { width: 65px; text-align: center; border: 1px solid #adb5bd; border-radius: 4px; font-size: 0.85rem; padding: 2px; font-weight: bold; background-color: #fff; }
     </style>
 </head>
@@ -60,9 +58,10 @@
 <div id="adminPanel" class="admin-panel container">
     <h5>🛠️ Configuración (Repartidor)</h5>
     <div class="row g-2">
-        <div class="col-4"><label class="small text-muted">WhatsApp</label><input type="text" id="adminPhone" class="form-control form-control-sm" placeholder="Ej: 549261..." oninput="generarLink()"></div>
-        <div class="col-4"><label class="small text-muted">Ganancia %</label><input type="number" id="adminMargin" class="form-control form-control-sm" value="0" placeholder="Ej: 20" oninput="actualizarPreciosEnVivo()"></div>
-        <div class="col-4"><label class="small text-muted">Envío $</label><input type="number" id="adminShipping" class="form-control form-control-sm" value="0" placeholder="Ej: 500" oninput="generarLink()"></div>
+        <div class="col-6 col-md-3"><label class="small text-muted">WhatsApp</label><input type="text" id="adminPhone" class="form-control form-control-sm" placeholder="Ej: 549261..." oninput="generarLink()"></div>
+        <div class="col-6 col-md-3"><label class="small text-muted">Ganancia %</label><input type="number" id="adminMargin" class="form-control form-control-sm" value="0" placeholder="Ej: 20" oninput="actualizarPreciosEnVivo()"></div>
+        <div class="col-6 col-md-3"><label class="small text-muted">Envío $</label><input type="number" id="adminShipping" class="form-control form-control-sm" value="0" placeholder="Ej: 500" oninput="generarLink()"></div>
+        <div class="col-6 col-md-3"><label class="small text-muted">Envío Gratis desde $</label><input type="number" id="adminFreeShipping" class="form-control form-control-sm" value="0" placeholder="Ej: 25000" oninput="generarLink()"></div>
     </div>
     <div id="linkBox" class="share-link-box mt-3" style="display:none">
         <span class="text-warning">👇 Link para el Kiosquero:</span><br>
@@ -114,10 +113,12 @@
 <div class="modal fade" id="cartModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered modal-dialog-scrollable"><div class="modal-content">
     <div class="modal-header border-0 pb-0"><h5 class="modal-title fw-bold">🛒 Confirmar Pedido</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
     <div class="modal-body font-monospace pt-0">
+        <div id="freeShippingBanner" class="alert alert-info text-center p-2 mt-2 mb-0 small fw-bold" style="display:none;"></div>
+        
         <div id="cartItemsContainer" class="mt-3"></div>
         <div class="mt-3 p-2 bg-light rounded d-flex justify-content-between align-items-center small">
-            <span class="text-muted">🛵 Envío:</span>
-            <input type="number" id="shippingCostInput" class="form-control form-control-sm bg-light text-end fw-bold" value="0" readonly style="width: 80px; border:none;">
+            <span class="text-muted" id="shippingLabelText">🛵 Envío:</span>
+            <input type="text" id="shippingCostInput" class="form-control form-control-sm bg-light text-end fw-bold" value="0" readonly style="width: 90px; border:none;">
         </div>
         <div class="modal-total">Total: <span id="modalFinalPrice">$0</span></div>
         <div class="text-center mt-2"><small class="text-muted fst-italic" style="font-size: 0.75rem">* Precios por peso son aproximados</small></div>
@@ -134,15 +135,16 @@
     const ITEMS_PER_PAGE = 40;
     let currentCategory = "TODOS";
     
-    let products = []; let cart = {}; let globalMargin = 0; let sellerPhone = ""; let shippingCost = 0; let rawCSV = "";
+    let products = []; let cart = {}; let globalMargin = 0; let sellerPhone = ""; let shippingCost = 0; 
+    let freeShippingThreshold = 0; // NUEVA VARIABLE
+    let rawCSV = "";
     let cartModalInstance = null; 
     let isShoppingMode = false; 
     let itemToReplace = null;
     let itemStatus = {}; 
     
-    // --- NUEVAS MEMORIAS DE CONTROL ---
-    let itemsReplaced = []; // Acá se guardan los cambios para el WhatsApp
-    let customWeights = {}; // Acá se guardan los kilos reales de la balanza
+    let itemsReplaced = []; 
+    let customWeights = {}; 
 
     window.onload = function() {
         cartModalInstance = new bootstrap.Modal(document.getElementById('cartModal'));
@@ -154,7 +156,7 @@
         if (p.get('order')) {
             let pass = prompt("🔐 Modo Repartidor. Ingrese Clave:");
             if (pass !== CLAVE_ADMIN) {
-                document.body.innerHTML = "<div style='display:flex;height:100vh;justify-content:center;align-items:center;flex-direction:column;text-align:center'><h1>⛔ Acceso Denegado</h1><p>Esta sección es solo para el personal de Repparto.</p></div>";
+                document.body.innerHTML = "<div style='display:flex;height:100vh;justify-content:center;align-items:center;flex-direction:column;text-align:center'><h1>⛔ Acceso Denegado</h1></div>";
                 return; 
             }
             isShoppingMode = true;
@@ -164,6 +166,7 @@
             sellerPhone = p.get('w') || ""; 
             shippingCost = parseFloat(p.get('s')) || 0;
             globalMargin = parseFloat(p.get('m')) || 0;
+            freeShippingThreshold = parseFloat(p.get('f')) || 0; // Lee el límite de la URL
 
             try {
                 const decoded = decodeURIComponent(p.get('order'));
@@ -172,7 +175,9 @@
             } catch(e) { alert("❌ ERROR: Link incompleto o dañado."); }
             
         } else if (p.get('m') || p.get('w')) {
-            globalMargin = parseFloat(p.get('m')) || 0; sellerPhone = p.get('w') || ""; shippingCost = parseFloat(p.get('s')) || 0;
+            globalMargin = parseFloat(p.get('m')) || 0; sellerPhone = p.get('w') || ""; 
+            shippingCost = parseFloat(p.get('s')) || 0;
+            freeShippingThreshold = parseFloat(p.get('f')) || 0; // Lee el límite de la URL
             document.getElementById("adminPanel").style.display = "none";
             cargarProductos();
         } else {
@@ -186,6 +191,11 @@
             if(localStorage.getItem('myPhone')) document.getElementById('adminPhone').value = localStorage.getItem('myPhone');
             if(localStorage.getItem('myMargin')) { document.getElementById('adminMargin').value = localStorage.getItem('myMargin'); globalMargin = parseFloat(localStorage.getItem('myMargin')) || 0; }
             if(localStorage.getItem('myShipping')) document.getElementById('adminShipping').value = localStorage.getItem('myShipping');
+            // Cargar límite guardado
+            if(localStorage.getItem('myFreeShipping')) { 
+                document.getElementById('adminFreeShipping').value = localStorage.getItem('myFreeShipping'); 
+                freeShippingThreshold = parseFloat(localStorage.getItem('myFreeShipping')) || 0; 
+            }
             generarLink();
             cargarProductos();
         }
@@ -223,9 +233,7 @@
 
     function actualizarPesoEnLista(name, val) {
         let weight = parseFloat(val);
-        if(weight > 0) {
-            customWeights[name] = weight;
-        }
+        if(weight > 0) { customWeights[name] = weight; }
         renderShoppingList();
     }
 
@@ -234,9 +242,8 @@
         const cleanPhone = sellerPhone.replace(/[^0-9]/g, '');
         const cleanUrl = window.location.href.split('?')[0];
         
-        // Solo para no mandar un JSON gigante con la info técnica si no hace falta, pero lo dejamos como estaba.
         const cartString = encodeURIComponent(JSON.stringify(cart));
-        const shoppingLink = `${cleanUrl}?order=${cartString}&w=${cleanPhone}&s=${shippingCost}&m=${globalMargin}`;
+        const shoppingLink = `${cleanUrl}?order=${cartString}&w=${cleanPhone}&s=${shippingCost}&m=${globalMargin}&f=${freeShippingThreshold}`;
 
         let text = "🛒 *PEDIDO ACTUALIZADO:*\n--------------------------------\n";
         let subtotal = 0; 
@@ -249,7 +256,6 @@
             const qty = cart[name];
             let actualWeight = prod ? (customWeights[name] || prod.weight) : 1;
             
-            // Calculamos el precio real (si es pesable, usamos el peso de la balanza o el original)
             let itemPrice = (prod && prod.isWeighed) ? Math.ceil(prod.basePriceKg * actualWeight) : (prod ? prod.price : 0);
             const itemTotal = itemPrice * qty;
             
@@ -270,7 +276,6 @@
             text += "\n🚨 *PRODUCTOS SIN STOCK:*\n" + listaFaltantes;
         }
 
-        // AGREGAR LISTA DE REEMPLAZADOS AL WHATSAPP
         if (itemsReplaced.length > 0) {
             text += "\n🔄 *REEMPLAZOS REALIZADOS:*\n";
             itemsReplaced.forEach(r => {
@@ -278,10 +283,19 @@
             });
         }
 
+        // CÁLCULO DE ENVÍO GRATIS FINAL
+        let effectiveShipping = (freeShippingThreshold > 0 && subtotal >= freeShippingThreshold) ? 0 : shippingCost;
+
         text += "--------------------------------\n";
         text += `*Subtotal: ${hayPesables ? '~' : ''}$${subtotal.toLocaleString('es-AR')}*\n`;
-        if (shippingCost > 0) text += `🛵 *Envío: $${shippingCost.toLocaleString('es-AR')}*\n`;
-        text += `💰 *TOTAL: ${hayPesables ? '~' : ''}$${(subtotal + shippingCost).toLocaleString('es-AR')}*\n\n`;
+        
+        if (freeShippingThreshold > 0 && subtotal >= freeShippingThreshold && shippingCost > 0) {
+            text += `🛵 *Envío: ¡GRATIS!*\n`;
+        } else if (shippingCost > 0) {
+            text += `🛵 *Envío: $${shippingCost.toLocaleString('es-AR')}*\n`;
+        }
+        
+        text += `💰 *TOTAL: ${hayPesables ? '~' : ''}$${(subtotal + effectiveShipping).toLocaleString('es-AR')}*\n\n`;
         text += ` \n⚙️ [DATOS TÉCNICOS INTERNOS - NO INGRESAR] \n${shoppingLink}`;
         window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(text)}`, '_blank');
     }
@@ -298,7 +312,6 @@
             const category = prod ? prod.category : "VARIOS"; 
             const qty = cart[name]; 
             
-            // LÓGICA DE PESO EN VIVO
             let isWeighed = prod && prod.isWeighed;
             let actualWeight = isWeighed ? (customWeights[name] || prod.weight) : 1;
             let precioUnitario = isWeighed ? Math.ceil(prod.basePriceKg * actualWeight) : (prod ? prod.price : 0);
@@ -312,7 +325,6 @@
 
             subtotal += totalItem; 
             
-            // Dibujamos el input de KG si es pesable
             let weightInputHtml = "";
             if (isWeighed) {
                 weightInputHtml = `
@@ -340,9 +352,17 @@
             container.innerHTML += html; 
         } 
         
+        let effectiveShipping = (freeShippingThreshold > 0 && subtotal >= freeShippingThreshold) ? 0 : shippingCost;
+
         let htmlTotal = `<div class="mt-4 p-3 bg-white rounded shadow-sm"><div class="d-flex justify-content-between text-muted"><span>Subtotal:</span> <span>$${subtotal.toLocaleString('es-AR')}</span></div>`;
-        if(shippingCost > 0) htmlTotal += `<div class="d-flex justify-content-between text-muted"><span>Envío:</span> <span>$${shippingCost.toLocaleString('es-AR')}</span></div>`;
-        htmlTotal += `<div class="d-flex justify-content-between fw-bold fs-4 mt-2 pt-2 border-top"><span>Total:</span> <span>$${(subtotal + shippingCost).toLocaleString('es-AR')}</span></div></div>`;
+        
+        if (freeShippingThreshold > 0 && subtotal >= freeShippingThreshold && shippingCost > 0) {
+            htmlTotal += `<div class="d-flex justify-content-between text-success fw-bold"><span>Envío:</span> <span>¡GRATIS!</span></div>`;
+        } else if (shippingCost > 0) {
+            htmlTotal += `<div class="d-flex justify-content-between text-muted"><span>Envío:</span> <span>$${shippingCost.toLocaleString('es-AR')}</span></div>`;
+        }
+        
+        htmlTotal += `<div class="d-flex justify-content-between fw-bold fs-4 mt-2 pt-2 border-top"><span>Total:</span> <span>$${(subtotal + effectiveShipping).toLocaleString('es-AR')}</span></div></div>`;
         container.innerHTML += htmlTotal;
         container.innerHTML += `<div class="d-grid gap-2 mt-3 mb-5"><button onclick="enviarWhatsapp()" class="btn btn-primary btn-lg"><i class="bi bi-whatsapp"></i> Confirmar Cambios y Enviar</button></div>`; 
     }
@@ -411,15 +431,9 @@
     function updateCart(name, change) { 
         if (itemToReplace && change > 0) {
             const oldQty = cart[itemToReplace];
-            delete cart[itemToReplace];
-            delete itemStatus[itemToReplace];
-            cart[name] = oldQty;
-            
-            // GUARDAMOS EL REGISTRO DEL REEMPLAZO
+            delete cart[itemToReplace]; delete itemStatus[itemToReplace]; cart[name] = oldQty;
             itemsReplaced.push({viejo: itemToReplace, nuevo: name});
-            
-            cancelarReemplazo();
-            return; 
+            cancelarReemplazo(); return; 
         }
         if(!cart[name]) cart[name]=0; cart[name]+=change; 
         if(cart[name]<=0) { delete cart[name]; delete itemStatus[name]; }
@@ -441,9 +455,71 @@
     
     function updateCartBar() { let total = 0; let items = 0; for(let name in cart) { const prod = products.find(p => p.name === name); if(prod) { total += prod.price * cart[name]; items += cart[name]; } } document.getElementById("totalPriceBar").innerText = "$" + total.toLocaleString('es-AR'); document.getElementById("totalItems").innerText = items; const bar = document.getElementById("cartBar"); const isModalOpen = document.getElementById('cartModal').classList.contains('show'); if(items > 0 && !isModalOpen) bar.classList.add("visible"); else bar.classList.remove("visible"); }
     
-    function abrirCarrito(refreshOnly = false) { const container = document.getElementById("cartItemsContainer"); container.innerHTML = ""; let subtotal = 0; document.getElementById("shippingCostInput").value = shippingCost; if(Object.keys(cart).length === 0) container.innerHTML = "<p class='text-center text-muted my-5'>Tu carrito está vacío.</p>"; else { for(let name in cart) { const prod = products.find(p => p.name === name); const itemTotal = prod.price * cart[name]; subtotal += itemTotal; const aproxSign = prod.isWeighed ? "~" : ""; container.innerHTML += `<div style="border-bottom:1px solid #eee;padding:8px 0;display:flex;justify-content:space-between;align-items:center"><div><div class="fw-bold small">${name}</div><div class="text-muted small">${cart[name]} x ${aproxSign}$${prod.price.toLocaleString('es-AR')}</div></div><div class="fw-bold">${aproxSign}$${itemTotal.toLocaleString('es-AR')}</div><button onclick="deleteItem('${name}')" style="border:none;background:none;color:#dc3545"><i class="bi bi-trash"></i></button></div>`; } } const hayPesados = Object.keys(cart).some(n => products.find(p=>p.name===n).isWeighed); document.getElementById("modalFinalPrice").innerText = (hayPesados ? "~" : "") + "$" + (subtotal + shippingCost).toLocaleString('es-AR'); if(!refreshOnly) { document.getElementById("cartBar").classList.remove("visible"); cartModalInstance.show(); } }
+    function abrirCarrito(refreshOnly = false) { 
+        const container = document.getElementById("cartItemsContainer"); container.innerHTML = ""; 
+        let subtotal = 0; 
+        
+        if(Object.keys(cart).length === 0) {
+            container.innerHTML = "<p class='text-center text-muted my-5'>Tu carrito está vacío.</p>";
+            document.getElementById("freeShippingBanner").style.display = "none";
+        } else { 
+            for(let name in cart) { 
+                const prod = products.find(p => p.name === name); 
+                const itemTotal = prod.price * cart[name]; 
+                subtotal += itemTotal; 
+                const aproxSign = prod.isWeighed ? "~" : ""; 
+                container.innerHTML += `<div style="border-bottom:1px solid #eee;padding:8px 0;display:flex;justify-content:space-between;align-items:center"><div><div class="fw-bold small">${name}</div><div class="text-muted small">${cart[name]} x ${aproxSign}$${prod.price.toLocaleString('es-AR')}</div></div><div class="fw-bold">${aproxSign}$${itemTotal.toLocaleString('es-AR')}</div><button onclick="deleteItem('${name}')" style="border:none;background:none;color:#dc3545"><i class="bi bi-trash"></i></button></div>`; 
+            } 
+        } 
+        
+        // LÓGICA DE CARTEL ENVÍO GRATIS EN EL CARRITO
+        let effectiveShipping = shippingCost;
+        let banner = document.getElementById("freeShippingBanner");
+        
+        if (freeShippingThreshold > 0 && Object.keys(cart).length > 0) {
+            banner.style.display = "block";
+            if (subtotal >= freeShippingThreshold) {
+                effectiveShipping = 0;
+                banner.className = "alert alert-success text-center p-2 mt-2 mb-0 small fw-bold";
+                banner.innerHTML = "🎉 ¡Felicidades! Tenés envío GRATIS.";
+                document.getElementById("shippingCostInput").value = "¡GRATIS!";
+                document.getElementById("shippingCostInput").classList.add("text-success");
+            } else {
+                let falta = freeShippingThreshold - subtotal;
+                banner.className = "alert alert-info text-center p-2 mt-2 mb-0 small fw-bold";
+                banner.innerHTML = `🛒 Agregá $${falta.toLocaleString('es-AR')} más para ENVÍO GRATIS!`;
+                document.getElementById("shippingCostInput").value = "$" + shippingCost;
+                document.getElementById("shippingCostInput").classList.remove("text-success");
+            }
+        } else {
+            banner.style.display = "none";
+            document.getElementById("shippingCostInput").value = "$" + shippingCost;
+        }
+
+        const hayPesados = Object.keys(cart).some(n => products.find(p=>p.name===n).isWeighed); 
+        document.getElementById("modalFinalPrice").innerText = (hayPesados ? "~" : "") + "$" + (subtotal + effectiveShipping).toLocaleString('es-AR'); 
+        
+        if(!refreshOnly) { document.getElementById("cartBar").classList.remove("visible"); cartModalInstance.show(); } 
+    }
     
-    function generarLink() { let phone = document.getElementById("adminPhone").value.replace(/[^0-9]/g, ''); const margin = document.getElementById("adminMargin").value; const ship = document.getElementById("adminShipping").value; localStorage.setItem('myPhone', phone); localStorage.setItem('myMargin', margin); localStorage.setItem('myShipping', ship); if(phone && margin) { document.getElementById("linkBox").style.display = "block"; const url = `${window.location.href.split('?')[0]}?w=${phone}&m=${margin}&s=${ship}`; document.getElementById("generatedLink").href = url; document.getElementById("generatedLink").innerText = url; } }
+    function generarLink() { 
+        let phone = document.getElementById("adminPhone").value.replace(/[^0-9]/g, ''); 
+        const margin = document.getElementById("adminMargin").value; 
+        const ship = document.getElementById("adminShipping").value; 
+        const freeShip = document.getElementById("adminFreeShipping").value; // NUEVO
+        
+        localStorage.setItem('myPhone', phone); 
+        localStorage.setItem('myMargin', margin); 
+        localStorage.setItem('myShipping', ship); 
+        localStorage.setItem('myFreeShipping', freeShip); // NUEVO
+        
+        if(phone && margin) { 
+            document.getElementById("linkBox").style.display = "block"; 
+            const url = `${window.location.href.split('?')[0]}?w=${phone}&m=${margin}&s=${ship}&f=${freeShip}`; 
+            document.getElementById("generatedLink").href = url; 
+            document.getElementById("generatedLink").innerText = url; 
+        } 
+    }
     function copiarLink() { navigator.clipboard.writeText(document.getElementById("generatedLink").href).then(() => alert("✅ Copiado!")); }
 </script>
 </body>
