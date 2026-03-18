@@ -4,15 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>App Repartidor</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#212529">
-    
     <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/3143/3143212.png">
-    <link rel="icon" sizes="192x192" href="https://cdn-icons-png.flaticon.com/512/3143/3143212.png">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
     
     <style>
         body { background-color: #f0f2f5; padding-bottom: 120px; font-family: -apple-system, sans-serif; }
@@ -65,14 +64,18 @@
 <div id="adminPanel" class="admin-panel container">
     <h5>🛠️ Configuración (Repartidor)</h5>
     <div class="row g-2">
-        <div class="col-6 col-md-3"><label class="small text-muted">WhatsApp</label><input type="text" id="adminPhone" class="form-control form-control-sm" placeholder="Ej: 549261..." oninput="generarLink()"></div>
-        <div class="col-6 col-md-3"><label class="small text-muted">Ganancia %</label><input type="number" id="adminMargin" class="form-control form-control-sm" value="0" placeholder="Ej: 20" oninput="actualizarPreciosEnVivo()"></div>
-        <div class="col-6 col-md-3"><label class="small text-muted">Envío $</label><input type="number" id="adminShipping" class="form-control form-control-sm" value="0" placeholder="Ej: 500" oninput="generarLink()"></div>
-        <div class="col-6 col-md-3"><label class="small text-muted">Envío Gratis desde $</label><input type="number" id="adminFreeShipping" class="form-control form-control-sm" value="0" placeholder="Ej: 25000" oninput="generarLink()"></div>
+        <div class="col-6 col-md-3"><label class="small text-muted">WhatsApp</label><input type="text" id="adminPhone" class="form-control form-control-sm" placeholder="Ej: 549..." oninput="generarLink()"></div>
+        <div class="col-6 col-md-3"><label class="small text-muted">Ganancia %</label><input type="number" id="adminMargin" class="form-control form-control-sm" value="18" oninput="actualizarPreciosEnVivo()"></div>
+        <div class="col-6 col-md-3"><label class="small text-muted">Envío $</label><input type="number" id="adminShipping" class="form-control form-control-sm" value="5000" oninput="generarLink()"></div>
+        <div class="col-6 col-md-3"><label class="small text-muted">Gratis desde $</label><input type="number" id="adminFreeShipping" class="form-control form-control-sm" value="100000" oninput="generarLink()"></div>
+        
+        <div class="col-6 col-md-4"><label class="small text-muted">Mínimo Compra $</label><input type="number" id="adminMinOrder" class="form-control form-control-sm" value="20000" oninput="generarLink()"></div>
+        <div class="col-6 col-md-4"><label class="small text-muted">Cierre (Ej: 15:00)</label><input type="time" id="adminTimeClose" class="form-control form-control-sm" value="15:00" oninput="generarLink()"></div>
+        <div class="col-6 col-md-4"><label class="small text-muted">Apertura (Ej: 20:00)</label><input type="time" id="adminTimeOpen" class="form-control form-control-sm" value="20:00" oninput="generarLink()"></div>
     </div>
     <div id="linkBox" class="share-link-box mt-3" style="display:none">
         <span class="text-warning">👇 Link para el Kiosquero:</span><br>
-        <a id="generatedLink" href="#" target="_blank" class="text-white text-decoration-underline">Generando...</a>
+        <a id="generatedLink" href="#" target="_blank" class="text-white text-decoration-underline" style="word-break: break-all; font-size: 0.8rem;">Generando...</a>
         <button class="btn btn-sm btn-outline-light mt-2 w-100" onclick="copiarLink()">Copiar Link</button>
     </div>
 </div>
@@ -97,7 +100,7 @@
             <button class="btn btn-sm btn-link text-danger p-0 ms-2" onclick="cancelarReemplazo()">(Cancelar)</button>
         </div>
         <div class="px-3">
-            <input type="text" id="searchInput" class="form-control border-0 py-2 shadow-sm rounded-pill" placeholder="🔍 Buscar producto...">
+            <input type="text" id="searchInput" class="form-control border-0 py-2 shadow-sm rounded-pill" placeholder="🔍 Buscar para agregar o reemplazar...">
         </div>
         <div id="categoryContainer" class="category-scroll mt-2" style="display:none;"></div>
     </div>
@@ -130,7 +133,11 @@
         <div class="modal-total">Total: <span id="modalFinalPrice">$0</span></div>
         <div class="text-center mt-2"><small class="text-muted fst-italic" style="font-size: 0.75rem">* Precios por peso son aproximados</small></div>
     </div>
-    <div class="modal-footer border-0"><button type="button" class="btn btn-success w-100 fw-bold py-3 rounded-pill fs-5 shadow-sm" onclick="enviarWhatsapp()"><i class="bi bi-whatsapp"></i> ENVIAR PEDIDO</button></div>
+    <div class="modal-footer border-0">
+        <button id="btnSendWsp" type="button" class="btn btn-success w-100 fw-bold py-3 rounded-pill fs-5 shadow-sm" onclick="enviarWhatsapp()">
+            <i class="bi bi-whatsapp"></i> ENVIAR PEDIDO
+        </button>
+    </div>
 </div></div></div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
@@ -143,7 +150,11 @@
     let currentCategory = "TODOS";
     
     let products = []; let cart = {}; let globalMargin = 0; let sellerPhone = ""; let shippingCost = 0; 
-    let freeShippingThreshold = 0; // NUEVA VARIABLE
+    let freeShippingThreshold = 0; 
+    let minOrderAmount = 0; 
+    let timeClose = ""; 
+    let timeOpen = "";
+    
     let rawCSV = "";
     let cartModalInstance = null; 
     let isShoppingMode = false; 
@@ -173,7 +184,10 @@
             sellerPhone = p.get('w') || ""; 
             shippingCost = parseFloat(p.get('s')) || 0;
             globalMargin = parseFloat(p.get('m')) || 0;
-            freeShippingThreshold = parseFloat(p.get('f')) || 0; // Lee el límite de la URL
+            freeShippingThreshold = parseFloat(p.get('f')) || 0; 
+            minOrderAmount = parseFloat(p.get('min')) || 0;
+            timeClose = p.get('tc') || "";
+            timeOpen = p.get('to') || "";
 
             try {
                 const decoded = decodeURIComponent(p.get('order'));
@@ -182,9 +196,14 @@
             } catch(e) { alert("❌ ERROR: Link incompleto o dañado."); }
             
         } else if (p.get('m') || p.get('w')) {
+            // MODO KIOSQUERO
             globalMargin = parseFloat(p.get('m')) || 0; sellerPhone = p.get('w') || ""; 
             shippingCost = parseFloat(p.get('s')) || 0;
-            freeShippingThreshold = parseFloat(p.get('f')) || 0; // Lee el límite de la URL
+            freeShippingThreshold = parseFloat(p.get('f')) || 0; 
+            minOrderAmount = parseFloat(p.get('min')) || 0;
+            timeClose = p.get('tc') || "";
+            timeOpen = p.get('to') || "";
+            
             document.getElementById("adminPanel").style.display = "none";
             cargarProductos();
         } else {
@@ -195,14 +214,16 @@
             }
             document.body.classList.add("admin-mode");
             document.getElementById("adminPanel").style.display = "block";
+            
+            // Cargar datos de localStorage si existen
             if(localStorage.getItem('myPhone')) document.getElementById('adminPhone').value = localStorage.getItem('myPhone');
             if(localStorage.getItem('myMargin')) { document.getElementById('adminMargin').value = localStorage.getItem('myMargin'); globalMargin = parseFloat(localStorage.getItem('myMargin')) || 0; }
             if(localStorage.getItem('myShipping')) document.getElementById('adminShipping').value = localStorage.getItem('myShipping');
-            // Cargar límite guardado
-            if(localStorage.getItem('myFreeShipping')) { 
-                document.getElementById('adminFreeShipping').value = localStorage.getItem('myFreeShipping'); 
-                freeShippingThreshold = parseFloat(localStorage.getItem('myFreeShipping')) || 0; 
-            }
+            if(localStorage.getItem('myFreeShipping')) document.getElementById('adminFreeShipping').value = localStorage.getItem('myFreeShipping');
+            if(localStorage.getItem('myMinOrder')) document.getElementById('adminMinOrder').value = localStorage.getItem('myMinOrder');
+            if(localStorage.getItem('myTimeClose')) document.getElementById('adminTimeClose').value = localStorage.getItem('myTimeClose');
+            if(localStorage.getItem('myTimeOpen')) document.getElementById('adminTimeOpen').value = localStorage.getItem('myTimeOpen');
+            
             generarLink();
             cargarProductos();
         }
@@ -220,6 +241,23 @@
             generarBotonesCategoria();
             isShoppingMode ? renderShoppingList() : renderList(false); 
         }).catch(e => { document.getElementById("productList").innerHTML = `<div class="alert alert-danger text-center">Error cargando datos.</div>`; });
+    }
+
+    // --- LÓGICA DE HORARIOS ---
+    function isStoreOpen() {
+        if (!timeClose || !timeOpen) return true; // Si no configuraste horario, siempre está abierto
+        
+        const now = new Date();
+        const currentStr = now.getHours().toString().padStart(2, '0') + ":" + now.getMinutes().toString().padStart(2, '0');
+        
+        if (timeClose < timeOpen) {
+            // Ejemplo: Cierra 15:00, Abre 20:00
+            if (currentStr >= timeClose && currentStr < timeOpen) return false;
+        } else {
+            // Ejemplo: Cierra 23:00, Abre 08:00 (Cruza la medianoche)
+            if (currentStr >= timeClose || currentStr < timeOpen) return false;
+        }
+        return true;
     }
 
     function generarBotonesCategoria() {
@@ -250,7 +288,7 @@
         const cleanUrl = window.location.href.split('?')[0];
         
         const cartString = encodeURIComponent(JSON.stringify(cart));
-        const shoppingLink = `${cleanUrl}?order=${cartString}&w=${cleanPhone}&s=${shippingCost}&m=${globalMargin}&f=${freeShippingThreshold}`;
+        const shoppingLink = `${cleanUrl}?order=${cartString}&w=${cleanPhone}&s=${shippingCost}&m=${globalMargin}&f=${freeShippingThreshold}&min=${minOrderAmount}&tc=${timeClose}&to=${timeOpen}`;
 
         let text = "🛒 *PEDIDO ACTUALIZADO:*\n--------------------------------\n";
         let subtotal = 0; 
@@ -279,18 +317,13 @@
         
         text += listaComprados;
         
-        if (listaFaltantes !== "") {
-            text += "\n🚨 *PRODUCTOS SIN STOCK:*\n" + listaFaltantes;
-        }
+        if (listaFaltantes !== "") { text += "\n🚨 *PRODUCTOS SIN STOCK:*\n" + listaFaltantes; }
 
         if (itemsReplaced.length > 0) {
             text += "\n🔄 *REEMPLAZOS REALIZADOS:*\n";
-            itemsReplaced.forEach(r => {
-                text += `✔️ Llevo: *${r.nuevo}*\n      _(En lugar de: ~${r.viejo}~)_\n`;
-            });
+            itemsReplaced.forEach(r => { text += `✔️ Llevo: *${r.nuevo}*\n      _(En lugar de: ~${r.viejo}~)_\n`; });
         }
 
-        // CÁLCULO DE ENVÍO GRATIS FINAL
         let effectiveShipping = (freeShippingThreshold > 0 && subtotal >= freeShippingThreshold) ? 0 : shippingCost;
 
         text += "--------------------------------\n";
@@ -362,14 +395,13 @@
         let effectiveShipping = (freeShippingThreshold > 0 && subtotal >= freeShippingThreshold) ? 0 : shippingCost;
 
         let htmlTotal = `<div class="mt-4 p-3 bg-white rounded shadow-sm"><div class="d-flex justify-content-between text-muted"><span>Subtotal:</span> <span>$${subtotal.toLocaleString('es-AR')}</span></div>`;
-        
         if (freeShippingThreshold > 0 && subtotal >= freeShippingThreshold && shippingCost > 0) {
             htmlTotal += `<div class="d-flex justify-content-between text-success fw-bold"><span>Envío:</span> <span>¡GRATIS!</span></div>`;
         } else if (shippingCost > 0) {
             htmlTotal += `<div class="d-flex justify-content-between text-muted"><span>Envío:</span> <span>$${shippingCost.toLocaleString('es-AR')}</span></div>`;
         }
-        
         htmlTotal += `<div class="d-flex justify-content-between fw-bold fs-4 mt-2 pt-2 border-top"><span>Total:</span> <span>$${(subtotal + effectiveShipping).toLocaleString('es-AR')}</span></div></div>`;
+        
         container.innerHTML += htmlTotal;
         container.innerHTML += `<div class="d-grid gap-2 mt-3 mb-5"><button onclick="enviarWhatsapp()" class="btn btn-primary btn-lg"><i class="bi bi-whatsapp"></i> Confirmar Cambios y Enviar</button></div>`; 
     }
@@ -479,10 +511,10 @@
             } 
         } 
         
-        // LÓGICA DE CARTEL ENVÍO GRATIS EN EL CARRITO
         let effectiveShipping = shippingCost;
         let banner = document.getElementById("freeShippingBanner");
         
+        // MANEJO DE ENVÍO GRATIS Y BANNERS
         if (freeShippingThreshold > 0 && Object.keys(cart).length > 0) {
             banner.style.display = "block";
             if (subtotal >= freeShippingThreshold) {
@@ -506,6 +538,33 @@
         const hayPesados = Object.keys(cart).some(n => products.find(p=>p.name===n).isWeighed); 
         document.getElementById("modalFinalPrice").innerText = (hayPesados ? "~" : "") + "$" + (subtotal + effectiveShipping).toLocaleString('es-AR'); 
         
+        // --- LOGICA DE BLOQUEO PARA EL CLIENTE (No afecta a Facu en Modo Repartidor) ---
+        let btnWsp = document.getElementById("btnSendWsp");
+        
+        if (!isShoppingMode) {
+            let abierto = isStoreOpen();
+            let faltaMinimo = minOrderAmount - subtotal;
+            
+            if (!abierto) {
+                btnWsp.disabled = true;
+                btnWsp.className = "btn btn-secondary w-100 fw-bold py-3 rounded-pill fs-6 shadow-sm";
+                btnWsp.innerHTML = `🛑 CERRADO (Abrimos a las ${timeOpen})`;
+            } else if (subtotal > 0 && subtotal < minOrderAmount) {
+                btnWsp.disabled = true;
+                btnWsp.className = "btn btn-danger w-100 fw-bold py-3 rounded-pill fs-6 shadow-sm";
+                btnWsp.innerHTML = `Faltan $${faltaMinimo.toLocaleString('es-AR')} para el mínimo`;
+            } else {
+                btnWsp.disabled = false;
+                btnWsp.className = "btn btn-success w-100 fw-bold py-3 rounded-pill fs-5 shadow-sm";
+                btnWsp.innerHTML = `<i class="bi bi-whatsapp"></i> ENVIAR PEDIDO`;
+            }
+        } else {
+            // SI ESTÁS VOS (FACU), EL BOTÓN SIEMPRE ANDA
+            btnWsp.disabled = false;
+            btnWsp.className = "btn btn-success w-100 fw-bold py-3 rounded-pill fs-5 shadow-sm";
+            btnWsp.innerHTML = `<i class="bi bi-whatsapp"></i> REENVIAR ACTUALIZADO`;
+        }
+        
         if(!refreshOnly) { document.getElementById("cartBar").classList.remove("visible"); cartModalInstance.show(); } 
     }
     
@@ -513,16 +572,22 @@
         let phone = document.getElementById("adminPhone").value.replace(/[^0-9]/g, ''); 
         const margin = document.getElementById("adminMargin").value; 
         const ship = document.getElementById("adminShipping").value; 
-        const freeShip = document.getElementById("adminFreeShipping").value; // NUEVO
+        const freeShip = document.getElementById("adminFreeShipping").value; 
+        const minOrder = document.getElementById("adminMinOrder").value;
+        const tClose = document.getElementById("adminTimeClose").value;
+        const tOpen = document.getElementById("adminTimeOpen").value;
         
         localStorage.setItem('myPhone', phone); 
         localStorage.setItem('myMargin', margin); 
         localStorage.setItem('myShipping', ship); 
-        localStorage.setItem('myFreeShipping', freeShip); // NUEVO
+        localStorage.setItem('myFreeShipping', freeShip); 
+        localStorage.setItem('myMinOrder', minOrder);
+        localStorage.setItem('myTimeClose', tClose);
+        localStorage.setItem('myTimeOpen', tOpen);
         
         if(phone && margin) { 
             document.getElementById("linkBox").style.display = "block"; 
-            const url = `${window.location.href.split('?')[0]}?w=${phone}&m=${margin}&s=${ship}&f=${freeShip}`; 
+            const url = `${window.location.href.split('?')[0]}?w=${phone}&m=${margin}&s=${ship}&f=${freeShip}&min=${minOrder}&tc=${tClose}&to=${tOpen}`; 
             document.getElementById("generatedLink").href = url; 
             document.getElementById("generatedLink").innerText = url; 
         } 
