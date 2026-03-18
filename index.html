@@ -161,6 +161,12 @@
         
         // --- DETECCIÓN DE MODO ---
         if (p.get('order')) {
+        // --- NUEVO: BARRERA DE SEGURIDAD ---
+            let pass = prompt("🔐 Modo Repartidor. Ingrese Clave:");
+            if (pass !== CLAVE_ADMIN) {
+                document.body.innerHTML = "<div style='display:flex;height:100vh;justify-content:center;align-items:center;flex-direction:column;text-align:center'><h1>⛔ Acceso Denegado</h1><p>Esta sección es solo para el personal de Repparto.</p></div>";
+                return; 
+            }
             isShoppingMode = true;
             document.body.classList.add("shopping-mode");
             document.getElementById("shoppingTitle").style.display = "block";
@@ -336,8 +342,8 @@
         text += `*Subtotal: ${hayPesables ? '~' : ''}$${subtotal.toLocaleString('es-AR')}*\n`;
         if (shippingCost > 0) text += `🛵 *Envío: $${shippingCost.toLocaleString('es-AR')}*\n`;
         text += `💰 *TOTAL: ${hayPesables ? '~' : ''}$${(subtotal + shippingCost).toLocaleString('es-AR')}*\n\n`;
-        if (hayPesables) text += `⚠️ _Nota: Fiambres/quesos sujetos a peso de balanza._\n\n`;
-        text += `📝 *Link para Tachar/Controlar Pedido:* \n${shoppingLink}`;
+        if (hayPesables) text += `⚠️ _Nota: El peso de fiambres y quesos puede variar._\n\n`;
+        text += ` \n⚙️ [DATOS TÉCNICOS INTERNOS - NO INGRESAR] \n${shoppingLink}`;
         window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(text)}`, '_blank');
     }
 
