@@ -164,6 +164,18 @@
     let itemsReplaced = []; 
     let customWeights = {}; 
 
+    // --- NUEVO: MAPA PARA TRADUCIR LOS NÚMEROS A TEXTO VISUAL ---
+    const CATEGORIAS_VISUALES = {
+        "1": "🧀 LÁCTEOS, QUESOS Y FRESCOS",
+        "2": "🥩 FIAMBRES Y EMBUTIDOS",
+        "3": "🥫 ALMACÉN Y CONSERVAS",
+        "4": "☕ DESAYUNO Y MERIENDA",
+        "5": "🍪 GALLETITAS Y SNACKS",
+        "6": "🧼 LIMPIEZA Y PERFUMERÍA",
+        "7": "🥤 BEBIDAS",
+        "8": "🍬 GOLOSINAS Y KIOSCO"
+    };
+
     window.onload = function() {
         cartModalInstance = new bootstrap.Modal(document.getElementById('cartModal'));
         document.getElementById('cartModal').addEventListener('show.bs.modal', () => document.getElementById("cartBar").classList.remove("visible"));
@@ -215,7 +227,6 @@
             document.body.classList.add("admin-mode");
             document.getElementById("adminPanel").style.display = "block";
             
-            // Cargar datos de localStorage si existen
             if(localStorage.getItem('myPhone')) document.getElementById('adminPhone').value = localStorage.getItem('myPhone');
             if(localStorage.getItem('myMargin')) { document.getElementById('adminMargin').value = localStorage.getItem('myMargin'); globalMargin = parseFloat(localStorage.getItem('myMargin')) || 0; }
             if(localStorage.getItem('myShipping')) document.getElementById('adminShipping').value = localStorage.getItem('myShipping');
@@ -243,18 +254,14 @@
         }).catch(e => { document.getElementById("productList").innerHTML = `<div class="alert alert-danger text-center">Error cargando datos.</div>`; });
     }
 
-    // --- LÓGICA DE HORARIOS ---
     function isStoreOpen() {
-        if (!timeClose || !timeOpen) return true; // Si no configuraste horario, siempre está abierto
-        
+        if (!timeClose || !timeOpen) return true; 
         const now = new Date();
         const currentStr = now.getHours().toString().padStart(2, '0') + ":" + now.getMinutes().toString().padStart(2, '0');
         
         if (timeClose < timeOpen) {
-            // Ejemplo: Cierra 15:00, Abre 20:00
             if (currentStr >= timeClose && currentStr < timeOpen) return false;
         } else {
-            // Ejemplo: Cierra 23:00, Abre 08:00 (Cruza la medianoche)
             if (currentStr >= timeClose || currentStr < timeOpen) return false;
         }
         return true;
@@ -262,7 +269,7 @@
 
     function generarBotonesCategoria() {
         let cats = ["TODOS"];
-        products.forEach(p => { if (!cats.includes(p.category) && p.category !== "VARIOS") cats.push(p.category); });
+        products.forEach(p => { if (!cats.includes(p.category) && p.category !== "📦 OTROS") cats.push(p.category); });
         const catContainer = document.getElementById("categoryContainer"); catContainer.innerHTML = "";
         cats.forEach(cat => {
             const activeClass = (cat === currentCategory) ? "active" : "";
@@ -349,7 +356,7 @@
         
         for (let name in cart) { 
             const prod = products.find(p => p.name === name); 
-            const category = prod ? prod.category : "VARIOS"; 
+            const category = prod ? prod.category : "📦 OTROS"; 
             const qty = cart[name]; 
             
             let isWeighed = prod && prod.isWeighed;
@@ -424,9 +431,14 @@
         for (let i = 1; i < lines.length; i++) { 
             const line = lines[i].trim(); if (!line) continue; 
             const cols = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/); if (cols.length < 2) continue; 
+            
             let name = cols[0] ? cols[0].trim().replace(/^"|"$/g, '') : "Sin Nombre"; 
             let priceStr = cols[1] ? cols[1].trim().replace(/^"|"$/g, '') : "0"; 
-            const category = cols[2] ? cols[2].trim().replace(/^"|"$/g, '') : "VARIOS"; 
+            
+            // --- NUEVO: TRADUCTOR DE CATEGORÍAS ---
+            let catNum = cols[2] ? cols[2].trim().replace(/^"|"$/g, '') : "10"; 
+            const category = CATEGORIAS_VISUALES[catNum] || "📦 OTROS"; 
+            
             const basePrice = parseFloat(priceStr.replace("$", "").replace(/\./g, "").replace(",", ".")) || 0; 
             let weight = 1; let isWeighed = false; 
             const match = name.match(/\{(\d+(\.\d+)?)\}/); 
@@ -514,7 +526,6 @@
         let effectiveShipping = shippingCost;
         let banner = document.getElementById("freeShippingBanner");
         
-        // MANEJO DE ENVÍO GRATIS Y BANNERS
         if (freeShippingThreshold > 0 && Object.keys(cart).length > 0) {
             banner.style.display = "block";
             if (subtotal >= freeShippingThreshold) {
@@ -538,7 +549,6 @@
         const hayPesados = Object.keys(cart).some(n => products.find(p=>p.name===n).isWeighed); 
         document.getElementById("modalFinalPrice").innerText = (hayPesados ? "~" : "") + "$" + (subtotal + effectiveShipping).toLocaleString('es-AR'); 
         
-        // --- LOGICA DE BLOQUEO PARA EL CLIENTE (No afecta a Facu en Modo Repartidor) ---
         let btnWsp = document.getElementById("btnSendWsp");
         
         if (!isShoppingMode) {
@@ -559,7 +569,6 @@
                 btnWsp.innerHTML = `<i class="bi bi-whatsapp"></i> ENVIAR PEDIDO`;
             }
         } else {
-            // SI ESTÁS VOS (FACU), EL BOTÓN SIEMPRE ANDA
             btnWsp.disabled = false;
             btnWsp.className = "btn btn-success w-100 fw-bold py-3 rounded-pill fs-5 shadow-sm";
             btnWsp.innerHTML = `<i class="bi bi-whatsapp"></i> REENVIAR ACTUALIZADO`;
