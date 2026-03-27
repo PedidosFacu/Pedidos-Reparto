@@ -426,8 +426,10 @@
     
     function actualizarPreciosEnVivo() { const val = document.getElementById("adminMargin").value; globalMargin = parseFloat(val) || 0; localStorage.setItem('myMargin', val); if(rawCSV) { products = parseCSV(rawCSV); renderList(false); } generarLink(); }
     
+    // --- FUNCIÓN CORREGIDA PARA LEER EL EXCEL ---
     function parseCSV(csvText) { 
         const lines = csvText.split("\n"); const result = []; 
+        // Empezamos desde la línea 1 (ignorando los títulos de las columnas)
         for (let i = 1; i < lines.length; i++) { 
             const line = lines[i].trim(); if (!line) continue; 
             const cols = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/); if (cols.length < 2) continue; 
@@ -435,14 +437,17 @@
             let name = cols[0] ? cols[0].trim().replace(/^"|"$/g, '') : "Sin Nombre"; 
             let priceStr = cols[1] ? cols[1].trim().replace(/^"|"$/g, '') : "0"; 
             
-            // --- NUEVO: TRADUCTOR DE CATEGORÍAS ---
+            // LA CLAVE ESTÁ ACÁ: Leemos SIEMPRE la tercera columna (índice 2)
             let catNum = cols[2] ? cols[2].trim().replace(/^"|"$/g, '') : "10"; 
+            
+            // Y SIEMPRE lo traducimos, pase lo que pase
             const category = CATEGORIAS_VISUALES[catNum] || "📦 OTROS"; 
             
             const basePrice = parseFloat(priceStr.replace("$", "").replace(/\./g, "").replace(",", ".")) || 0; 
             let weight = 1; let isWeighed = false; 
             const match = name.match(/\{(\d+(\.\d+)?)\}/); 
             if (match) { weight = parseFloat(match[1]); name = name.replace(match[0], "").trim(); isWeighed = true; } 
+            
             if (name && basePrice > 0) { 
                 const unitPrice = basePrice * (1 + (globalMargin / 100)); 
                 const finalPrice = Math.ceil(unitPrice * weight); 
