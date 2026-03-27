@@ -164,18 +164,6 @@
     let itemsReplaced = []; 
     let customWeights = {}; 
 
-    // --- NUEVO: MAPA PARA TRADUCIR LOS NÚMEROS A TEXTO VISUAL ---
-    const CATEGORIAS_VISUALES = {
-        "1": "🧀 LÁCTEOS, QUESOS Y FRESCOS",
-        "2": "🥩 FIAMBRES Y EMBUTIDOS",
-        "3": "🥫 ALMACÉN Y CONSERVAS",
-        "4": "☕ DESAYUNO Y MERIENDA",
-        "5": "🍪 GALLETITAS Y SNACKS",
-        "6": "🧼 LIMPIEZA Y PERFUMERÍA",
-        "7": "🥤 BEBIDAS",
-        "8": "🍬 GOLOSINAS Y KIOSCO"
-    };
-
     window.onload = function() {
         cartModalInstance = new bootstrap.Modal(document.getElementById('cartModal'));
         document.getElementById('cartModal').addEventListener('show.bs.modal', () => document.getElementById("cartBar").classList.remove("visible"));
@@ -208,7 +196,6 @@
             } catch(e) { alert("❌ ERROR: Link incompleto o dañado."); }
             
         } else if (p.get('m') || p.get('w')) {
-            // MODO KIOSQUERO
             globalMargin = parseFloat(p.get('m')) || 0; sellerPhone = p.get('w') || ""; 
             shippingCost = parseFloat(p.get('s')) || 0;
             freeShippingThreshold = parseFloat(p.get('f')) || 0; 
@@ -429,19 +416,16 @@
     // --- FUNCIÓN CORREGIDA PARA LEER EL EXCEL ---
     function parseCSV(csvText) { 
         const lines = csvText.split("\n"); const result = []; 
-        // Empezamos desde la línea 1 (ignorando los títulos de las columnas)
         for (let i = 1; i < lines.length; i++) { 
             const line = lines[i].trim(); if (!line) continue; 
+            // Expresión regular para separar por comas pero ignorar las comas dentro de comillas
             const cols = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/); if (cols.length < 2) continue; 
             
             let name = cols[0] ? cols[0].trim().replace(/^"|"$/g, '') : "Sin Nombre"; 
             let priceStr = cols[1] ? cols[1].trim().replace(/^"|"$/g, '') : "0"; 
             
-            // LA CLAVE ESTÁ ACÁ: Leemos SIEMPRE la tercera columna (índice 2)
-            let catNum = cols[2] ? cols[2].trim().replace(/^"|"$/g, '') : "10"; 
-            
-            // Y SIEMPRE lo traducimos, pase lo que pase
-            const category = CATEGORIAS_VISUALES[catNum] || "📦 OTROS"; 
+            // 🔥 LA SOLUCIÓN: Ya no traducimos números. Leemos el texto exacto que mandó el robot en la 3ra columna.
+            const category = cols[2] ? cols[2].trim().replace(/^"|"$/g, '') : "📦 OTROS"; 
             
             const basePrice = parseFloat(priceStr.replace("$", "").replace(/\./g, "").replace(",", ".")) || 0; 
             let weight = 1; let isWeighed = false; 
