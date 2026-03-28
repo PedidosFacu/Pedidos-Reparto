@@ -68,10 +68,7 @@
         <div class="col-6 col-md-3"><label class="small text-light">Ganancia %</label><input type="number" id="adminMargin" class="form-control form-control-sm" value="18" oninput="actualizarPreciosEnVivo()"></div>
         <div class="col-6 col-md-3"><label class="small text-light">Envío $</label><input type="number" id="adminShipping" class="form-control form-control-sm" value="5000" oninput="generarLink()"></div>
         <div class="col-6 col-md-3"><label class="small text-light">Gratis desde $</label><input type="number" id="adminFreeShipping" class="form-control form-control-sm" value="100000" oninput="generarLink()"></div>
-        
-        <div class="col-6 col-md-4"><label class="small text-light">Mínimo Compra $</label><input type="number" id="adminMinOrder" class="form-control form-control-sm" value="20000" oninput="generarLink()"></div>
-        <div class="col-6 col-md-4"><label class="small text-light">Cierre (Ej: 15:00)</label><input type="time" id="adminTimeClose" class="form-control form-control-sm" value="" oninput="generarLink()"></div>
-        <div class="col-6 col-md-4"><label class="small text-light">Apertura (Ej: 20:00)</label><input type="time" id="adminTimeOpen" class="form-control form-control-sm" value="" oninput="generarLink()"></div>
+        <div class="col-12"><label class="small text-light">Mínimo Compra $</label><input type="number" id="adminMinOrder" class="form-control form-control-sm" value="20000" oninput="generarLink()"></div>
     </div>
     <div id="linkBox" class="share-link-box mt-3" style="display:none">
         <span class="text-warning">👇 Link para el Kiosquero:</span><br>
@@ -152,8 +149,6 @@
     let products = []; let cart = {}; let globalMargin = 0; let sellerPhone = ""; let shippingCost = 0; 
     let freeShippingThreshold = 0; 
     let minOrderAmount = 0; 
-    let timeClose = ""; 
-    let timeOpen = "";
     
     let rawCSV = "";
     let cartModalInstance = null; 
@@ -197,8 +192,6 @@
             globalMargin = parseFloat(p.get('m')) || 0;
             freeShippingThreshold = parseFloat(p.get('f')) || 0; 
             minOrderAmount = parseFloat(p.get('min')) || 0;
-            timeClose = p.get('tc') || "";
-            timeOpen = p.get('to') || "";
 
             try {
                 const decoded = decodeURIComponent(p.get('order'));
@@ -211,8 +204,6 @@
             shippingCost = parseFloat(p.get('s')) || 0;
             freeShippingThreshold = parseFloat(p.get('f')) || 0; 
             minOrderAmount = parseFloat(p.get('min')) || 0;
-            timeClose = p.get('tc') || "";
-            timeOpen = p.get('to') || "";
             
             document.getElementById("adminPanel").style.display = "none";
             cargarProductos();
@@ -230,8 +221,6 @@
             if(localStorage.getItem('myShipping')) document.getElementById('adminShipping').value = localStorage.getItem('myShipping');
             if(localStorage.getItem('myFreeShipping')) document.getElementById('adminFreeShipping').value = localStorage.getItem('myFreeShipping');
             if(localStorage.getItem('myMinOrder')) document.getElementById('adminMinOrder').value = localStorage.getItem('myMinOrder');
-            if(localStorage.getItem('myTimeClose')) document.getElementById('adminTimeClose').value = localStorage.getItem('myTimeClose');
-            if(localStorage.getItem('myTimeOpen')) document.getElementById('adminTimeOpen').value = localStorage.getItem('myTimeOpen');
             
             generarLink();
             cargarProductos();
@@ -250,19 +239,6 @@
             generarBotonesCategoria();
             isShoppingMode ? renderShoppingList() : renderList(false); 
         }).catch(e => { document.getElementById("productList").innerHTML = `<div class="alert alert-danger text-center">Error cargando datos.</div>`; });
-    }
-
-    function isStoreOpen() {
-        if (!timeClose || !timeOpen) return true; 
-        const now = new Date();
-        const currentStr = now.getHours().toString().padStart(2, '0') + ":" + now.getMinutes().toString().padStart(2, '0');
-        
-        if (timeClose < timeOpen) {
-            if (currentStr >= timeClose && currentStr < timeOpen) return false;
-        } else {
-            if (currentStr >= timeClose || currentStr < timeOpen) return false;
-        }
-        return true;
     }
 
     function generarBotonesCategoria() {
@@ -293,7 +269,7 @@
         const cleanUrl = window.location.href.split('?')[0];
         
         const cartString = encodeURIComponent(JSON.stringify(cart));
-        const shoppingLink = `${cleanUrl}?order=${cartString}&w=${cleanPhone}&s=${shippingCost}&m=${globalMargin}&f=${freeShippingThreshold}&min=${minOrderAmount}&tc=${timeClose}&to=${timeOpen}`;
+        const shoppingLink = `${cleanUrl}?order=${cartString}&w=${cleanPhone}&s=${shippingCost}&m=${globalMargin}&f=${freeShippingThreshold}&min=${minOrderAmount}`;
 
         let text = "🛒 *PEDIDO ACTUALIZADO:*\n--------------------------------\n";
         let subtotal = 0; 
@@ -557,14 +533,8 @@
         let btnWsp = document.getElementById("btnSendWsp");
         
         if (!isShoppingMode) {
-            let abierto = isStoreOpen();
             let faltaMinimo = minOrderAmount - subtotal;
-            
-            if (!abierto) {
-                btnWsp.disabled = true;
-                btnWsp.className = "btn btn-secondary w-100 fw-bold py-3 rounded-pill fs-6 shadow-sm";
-                btnWsp.innerHTML = `🛑 CERRADO (Abrimos a las ${timeOpen})`;
-            } else if (subtotal > 0 && subtotal < minOrderAmount) {
+            if (subtotal > 0 && subtotal < minOrderAmount) {
                 btnWsp.disabled = true;
                 btnWsp.className = "btn btn-danger w-100 fw-bold py-3 rounded-pill fs-6 shadow-sm";
                 btnWsp.innerHTML = `Faltan $${faltaMinimo.toLocaleString('es-AR')} para el mínimo`;
@@ -588,20 +558,16 @@
         const ship = document.getElementById("adminShipping").value; 
         const freeShip = document.getElementById("adminFreeShipping").value; 
         const minOrder = document.getElementById("adminMinOrder").value;
-        const tClose = document.getElementById("adminTimeClose").value;
-        const tOpen = document.getElementById("adminTimeOpen").value;
         
         localStorage.setItem('myPhone', phone); 
         localStorage.setItem('myMargin', margin); 
         localStorage.setItem('myShipping', ship); 
         localStorage.setItem('myFreeShipping', freeShip); 
         localStorage.setItem('myMinOrder', minOrder);
-        localStorage.setItem('myTimeClose', tClose);
-        localStorage.setItem('myTimeOpen', tOpen);
         
         if(phone && margin) { 
             document.getElementById("linkBox").style.display = "block"; 
-            const url = `${window.location.href.split('?')[0]}?w=${phone}&m=${margin}&s=${ship}&f=${freeShip}&min=${minOrder}&tc=${tClose}&to=${tOpen}`; 
+            const url = `${window.location.href.split('?')[0]}?w=${phone}&m=${margin}&s=${ship}&f=${freeShip}&min=${minOrder}`; 
             document.getElementById("generatedLink").href = url; 
             document.getElementById("generatedLink").innerText = url; 
         } 
