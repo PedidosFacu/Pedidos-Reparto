@@ -57,6 +57,26 @@
         
         .replace-mode-alert { background: #fff3cd; color: #856404; padding: 10px; font-size: 0.9rem; border-bottom: 1px solid #ffeeba; display: none; text-align: center; }
         .weight-input { width: 65px; text-align: center; border: 1px solid #adb5bd; border-radius: 4px; font-size: 0.85rem; padding: 2px; font-weight: bold; background-color: #fff; }
+
+        /* --- NUEVO: DISEÑO DEL BANNER DE HORARIOS --- */
+        .hours-banner {
+            background: linear-gradient(135deg, #0d6efd, #0a58ca);
+            color: white;
+            border-radius: 12px;
+            padding: 12px 15px;
+            margin: 10px 15px 15px 15px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 4px 10px rgba(13, 110, 253, 0.25);
+        }
+        .hours-banner i { font-size: 1.8rem; margin-right: 12px; opacity: 0.9; }
+        .hours-text { flex: 1; line-height: 1.2; }
+        .hours-title { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.85; }
+        .hours-time { font-size: 1.1rem; font-weight: 800; }
+        .hours-badge { padding: 5px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 800; letter-spacing: 0.5px; }
+        .hours-badge.open { background: #198754; color: white; box-shadow: 0 2px 5px rgba(25, 135, 84, 0.4); }
+        .hours-badge.closed { background: #dc3545; color: white; box-shadow: 0 2px 5px rgba(220, 53, 69, 0.4); }
     </style>
 </head>
 <body>
@@ -95,6 +115,8 @@
     </div>
 
     <div class="search-sticky">
+        <div id="hoursBannerContainer"></div>
+
         <div id="replaceAlert" class="replace-mode-alert">
             🔄 <b>Modo Reemplazo:</b> Buscá el producto nuevo para cambiarlo por <b id="replaceTargetName">...</b>
             <button class="btn btn-sm btn-link text-danger p-0 ms-2" onclick="cancelarReemplazo()">(Cancelar)</button>
@@ -164,6 +186,18 @@
     let itemsReplaced = []; 
     let customWeights = {}; 
 
+    // --- MAPA PARA TRADUCIR LOS NÚMEROS A TEXTO VISUAL ---
+    const CATEGORIAS_VISUALES = {
+        "1": "🧀 LÁCTEOS, QUESOS Y FRESCOS",
+        "2": "🥩 FIAMBRES Y EMBUTIDOS",
+        "3": "🥫 ALMACÉN Y CONSERVAS",
+        "4": "☕ DESAYUNO Y MERIENDA",
+        "5": "🍪 GALLETITAS Y SNACKS",
+        "6": "🧼 LIMPIEZA Y PERFUMERÍA",
+        "7": "🥤 BEBIDAS",
+        "8": "🍬 GOLOSINAS Y KIOSCO"
+    };
+
     window.onload = function() {
         cartModalInstance = new bootstrap.Modal(document.getElementById('cartModal'));
         document.getElementById('cartModal').addEventListener('show.bs.modal', () => document.getElementById("cartBar").classList.remove("visible"));
@@ -196,6 +230,7 @@
             } catch(e) { alert("❌ ERROR: Link incompleto o dañado."); }
             
         } else if (p.get('m') || p.get('w')) {
+            // MODO KIOSQUERO
             globalMargin = parseFloat(p.get('m')) || 0; sellerPhone = p.get('w') || ""; 
             shippingCost = parseFloat(p.get('s')) || 0;
             freeShippingThreshold = parseFloat(p.get('f')) || 0; 
@@ -204,6 +239,7 @@
             timeOpen = p.get('to') || "";
             
             document.getElementById("adminPanel").style.display = "none";
+            renderHoursBanner(); // Mostramos el cartel de horarios
             cargarProductos();
         } else {
             let pass = prompt("🔐 Ingrese Clave de Administrador:");
@@ -232,6 +268,29 @@
             else { renderList(false); }
         });
     };
+
+    // --- FUNCIÓN QUE ARMA Y MUESTRA EL CARTEL DE HORARIOS ---
+    function renderHoursBanner() {
+        if (!timeOpen || !timeClose) return; // Si no hay horario configurado, no muestra nada.
+        
+        const container = document.getElementById("hoursBannerContainer");
+        const abierto = isStoreOpen();
+        
+        const statusBadge = abierto 
+            ? `<div class="hours-badge open"><i class="bi bi-check-circle-fill d-none d-sm-inline"></i> ABIERTO</div>` 
+            : `<div class="hours-badge closed"><i class="bi bi-x-circle-fill d-none d-sm-inline"></i> CERRADO</div>`;
+        
+        container.innerHTML = `
+            <div class="hours-banner">
+                <i class="bi bi-clock-history"></i>
+                <div class="hours-text">
+                    <div class="hours-title">Toma de pedidos</div>
+                    <div class="hours-time">De ${timeOpen} a ${timeClose} hs</div>
+                </div>
+                ${statusBadge}
+            </div>
+        `;
+    }
 
     function cargarProductos() {
         fetch(SHEET_URL).then(r => r.ok ? r.text() : Promise.reject(r.status)).then(csv => {
@@ -413,19 +472,17 @@
     
     function actualizarPreciosEnVivo() { const val = document.getElementById("adminMargin").value; globalMargin = parseFloat(val) || 0; localStorage.setItem('myMargin', val); if(rawCSV) { products = parseCSV(rawCSV); renderList(false); } generarLink(); }
     
-    // --- FUNCIÓN CORREGIDA PARA LEER EL EXCEL ---
     function parseCSV(csvText) { 
         const lines = csvText.split("\n"); const result = []; 
         for (let i = 1; i < lines.length; i++) { 
             const line = lines[i].trim(); if (!line) continue; 
-            // Expresión regular para separar por comas pero ignorar las comas dentro de comillas
             const cols = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/); if (cols.length < 2) continue; 
             
             let name = cols[0] ? cols[0].trim().replace(/^"|"$/g, '') : "Sin Nombre"; 
             let priceStr = cols[1] ? cols[1].trim().replace(/^"|"$/g, '') : "0"; 
             
-            // 🔥 LA SOLUCIÓN: Ya no traducimos números. Leemos el texto exacto que mandó el robot en la 3ra columna.
-            const category = cols[2] ? cols[2].trim().replace(/^"|"$/g, '') : "📦 OTROS"; 
+            let rawCat = cols[2] ? cols[2].trim().replace(/^"|"$/g, '') : "📦 OTROS"; 
+            const category = CATEGORIAS_VISUALES[rawCat] || rawCat; 
             
             const basePrice = parseFloat(priceStr.replace("$", "").replace(/\./g, "").replace(",", ".")) || 0; 
             let weight = 1; let isWeighed = false; 
@@ -491,7 +548,15 @@
         if(isShoppingMode) renderList(false); else { renderList(false); updateCartBar(); } 
     }
     
-    function deleteItem(name) { delete cart[name]; renderList(false); updateCartBar(); if(document.getElementById('cartModal').classList.contains('show')) abrirCarrito(true); }
+    // --- NUEVO: FUNCIÓN PARA BORRAR CON CARTELITO DE CONFIRMACIÓN ---
+    function deleteItem(name) { 
+        if (confirm(`¿Seguro que querés quitar "${name}" de tu pedido?`)) {
+            delete cart[name]; 
+            renderList(false); 
+            updateCartBar(); 
+            if(document.getElementById('cartModal').classList.contains('show')) abrirCarrito(true); 
+        }
+    }
     
     function updateCartBar() { let total = 0; let items = 0; for(let name in cart) { const prod = products.find(p => p.name === name); if(prod) { total += prod.price * cart[name]; items += cart[name]; } } document.getElementById("totalPriceBar").innerText = "$" + total.toLocaleString('es-AR'); document.getElementById("totalItems").innerText = items; const bar = document.getElementById("cartBar"); const isModalOpen = document.getElementById('cartModal').classList.contains('show'); if(items > 0 && !isModalOpen) bar.classList.add("visible"); else bar.classList.remove("visible"); }
     
