@@ -72,8 +72,8 @@
     </div>
     <div id="linkBox" class="share-link-box mt-3" style="display:none">
         <span class="text-warning">👇 Link para el Kiosquero:</span><br>
-        <a id="generatedLink" href="#" target="_blank" class="text-white text-decoration-underline" style="word-break: break-all; font-size: 0.8rem;">Generando...</a>
-        <button class="btn btn-sm btn-outline-light mt-2 w-100" onclick="copiarLink()">Copiar Link</button>
+        <a id="generatedLink" href="#" target="_blank" class="text-white text-decoration-underline" style="word-break: break-all; font-size: 1rem; font-weight: bold;">Generando link...</a>
+        <button class="btn btn-sm btn-outline-light mt-2 w-100" onclick="copiarLink()">Copiar Link Corto</button>
     </div>
 </div>
 
@@ -97,7 +97,7 @@
             <button class="btn btn-sm btn-link text-danger p-0 ms-2" onclick="cancelarReemplazo()">(Cancelar)</button>
         </div>
         <div class="px-3">
-            <input type="text" id="searchInput" class="form-control border-0 py-2 shadow-sm rounded-pill" placeholder="🔍 Buscar producto...">
+            <input type="text" id="searchInput" class="form-control border-0 py-2 shadow-sm rounded-pill" placeholder="🔍 Buscar para agregar o reemplazar...">
         </div>
         <div id="categoryContainer" class="category-scroll mt-2" style="display:none;"></div>
     </div>
@@ -552,6 +552,7 @@
         if(!refreshOnly) { document.getElementById("cartBar").classList.remove("visible"); cartModalInstance.show(); } 
     }
     
+    // --- MAGIA: Generación del link con API Acortadora (TinyURL) ---
     function generarLink() { 
         let phone = document.getElementById("adminPhone").value.replace(/[^0-9]/g, ''); 
         const margin = document.getElementById("adminMargin").value; 
@@ -567,9 +568,24 @@
         
         if(phone && margin) { 
             document.getElementById("linkBox").style.display = "block"; 
-            const url = `${window.location.href.split('?')[0]}?w=${phone}&m=${margin}&s=${ship}&f=${freeShip}&min=${minOrder}`; 
-            document.getElementById("generatedLink").href = url; 
-            document.getElementById("generatedLink").innerText = url; 
+            const urlLarga = `${window.location.href.split('?')[0]}?w=${phone}&m=${margin}&s=${ship}&f=${freeShip}&min=${minOrder}`; 
+            
+            const linkElement = document.getElementById("generatedLink");
+            linkElement.innerText = "⏳ Generando link corto...";
+            linkElement.href = "#";
+
+            // Usamos la API gratuita de TinyURL para acortar el choclo
+            fetch(`https://tinyurl.com/api-create.php?url=${encodeURIComponent(urlLarga)}`)
+                .then(response => response.text())
+                .then(urlCorta => {
+                    linkElement.href = urlCorta; 
+                    linkElement.innerText = urlCorta; 
+                })
+                .catch(error => {
+                    // Si por algún motivo falla el internet o la API, mostramos el largo
+                    linkElement.href = urlLarga; 
+                    linkElement.innerText = urlLarga;
+                });
         } 
     }
     function copiarLink() { navigator.clipboard.writeText(document.getElementById("generatedLink").href).then(() => alert("✅ Copiado!")); }
